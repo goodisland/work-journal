@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+import json
+from datetime import date, datetime
+from pathlib import Path
+from typing import Iterable
+
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+SCREENSHOTS_DIR = DATA_DIR / "screenshots"
+LOGS_DIR = DATA_DIR / "logs"
+ACTIVITY_LOG_PATH = LOGS_DIR / "activity_log.jsonl"
+SAMPLE_LOG_PATH = LOGS_DIR / "sample_activity_log.jsonl"
+
+
+def ensure_directories() -> None:
+    SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_screenshot_path(ts: datetime) -> Path:
+    daily_dir = SCREENSHOTS_DIR / ts.strftime("%Y-%m-%d")
+    daily_dir.mkdir(parents=True, exist_ok=True)
+    return daily_dir / f"{ts.strftime('%Y-%m-%d_%H-%M-%S')}.png"
+
+
+def append_log(entry: dict) -> None:
+    ensure_directories()
+    with ACTIVITY_LOG_PATH.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def write_log_file(path: Path, entries: Iterable[dict]) -> None:
+    ensure_directories()
+    with path.open("w", encoding="utf-8") as fh:
+        for entry in entries:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def read_logs(target_date: date | None = None, include_sample: bool = True) -> list[dict]:
+    ensure_directories()
+    entries: list[dict] = []
+    for path in _candidate_log_files(include_sample=include_sample):
+        if not path.exists():
+            continue
+        with path.open("r", encoding="utf-8") as fh:
+            for raw_line in fh:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if target_date and not item.get("timestamp", "").startswith(target_date.isoformat()):
+                    continue
+                entries.append(item)
+    entries.sort(key=lambda item: item.get("timestamp", ""))
+    return entries
+
+
+def _candidate_log_files(include_sample: bool = True) -> list[Path]:
+    paths = [ACTIVITY_LOG_PATH]
+    if include_sample:
+        paths.append(SAMPLE_LOG_PATH)
+    return paths

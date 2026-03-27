@@ -1,0 +1,100 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Dashboard</p>
+    <h2>{{ "記録中" if recording else "停止中" }}</h2>
+    <p class="muted">今日のログを集約して、振り返りと共有用の下書きをローカルで確認できます。</p>
+  </div>
+  <div class="status-pill {{ 'running' if recording else 'stopped' }}">
+    {{ "Recording" if recording else "Stopped" }}
+  </div>
+</section>
+
+<section class="grid two">
+  <article class="card stat-card">
+    <p class="label">今日の総記録時間</p>
+    <p class="metric">{{ summary.total_minutes }} 分</p>
+  </article>
+  <article class="card stat-card">
+    <p class="label">今日のログ件数</p>
+    <p class="metric">{{ entries|length }} 件</p>
+  </article>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <h3>記録設定</h3>
+    <form method="post" action="/recording/start" class="stack-form">
+      <label>記録間隔（秒）
+        <input type="number" name="interval_seconds" min="3" value="{{ settings.interval_seconds }}">
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" name="enable_ocr" {% if settings.enable_ocr %}checked{% endif %}>
+        OCRを使う
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" name="use_ai" {% if settings.use_ai %}checked{% endif %}>
+        低信頼時のみAI補完を使う
+      </label>
+      <label>AI Provider
+        <select name="ai_provider">
+          {% for provider in ["mock", "openai", "mistral"] %}
+          <option value="{{ provider }}" {% if provider == settings.ai_provider %}selected{% endif %}>{{ provider }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>AI呼び出し閾値
+        <input type="number" step="0.05" min="0" max="1" name="ai_threshold" value="{{ settings.ai_threshold }}">
+      </label>
+      <div class="button-row">
+        <button type="submit" class="primary">記録開始</button>
+      </div>
+    </form>
+    <form method="post" action="/recording/stop">
+      <button type="submit" class="secondary">停止</button>
+    </form>
+    <form method="post" action="/recording/capture">
+      <button type="submit" class="ghost">1回だけ記録</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <h3>カテゴリ別の時間</h3>
+    {% if summary.totals %}
+    <div class="stack-list">
+      {% for item in summary.totals %}
+      <div class="row-between">
+        <span>{{ item.activity_label }}</span>
+        <strong>{{ item.minutes }} 分</strong>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">まだログがありません。サンプルデータまたは記録開始で確認できます。</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="card">
+  <h3>最近のログ</h3>
+  {% if entries %}
+  <div class="stack-list">
+    {% for item in entries[-5:]|reverse %}
+    <div class="timeline-row compact">
+      <div>
+        <p class="item-title">{{ item.activity_label }}</p>
+        <p class="muted">{{ item.activity_summary }}</p>
+      </div>
+      <div class="meta-right">
+        <span>{{ item.timestamp[11:16] }}</span>
+        <span>{{ item.inference_source }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">表示できるログがありません。</p>
+  {% endif %}
+</section>
+{% endblock %}

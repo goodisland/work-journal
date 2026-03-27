@@ -1,0 +1,2 @@
+$env:PATH = "C:\Users\goodi\anaconda3\envs\py313;C:\Users\goodi\anaconda3\envs\py313\Library\mingw-w64\bin;C:\Users\goodi\anaconda3\envs\py313\Library\usr\bin;C:\Users\goodi\anaconda3\envs\py313\Library\bin;C:\Users\goodi\anaconda3\envs\py313\Scripts;$env:PATH"
+& "C:\Users\goodi\anaconda3\envs\py313\python.exe" (Join-Path $PSScriptRoot "app.py")

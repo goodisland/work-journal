@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title if title else "Work Journal Mock" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="sidebar">
+        <div>
+          <p class="eyebrow">Reflection Support</p>
+          <h1>Work Journal</h1>
+          <p class="muted">スクリーンショットと軽い推定から、自分用ログと公開用日報を分けて作るローカルモックです。</p>
+        </div>
+        <nav class="nav">
+          <a href="/">Dashboard</a>
+          <a href="/timeline">Timeline</a>
+          <a href="/private-summary">Private Summary</a>
+          <a href="/public-report">Public Report</a>
+        </nav>
+      </aside>
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>

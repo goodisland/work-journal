@@ -1,0 +1,27 @@
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Secrets and local config
+.env
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+
+# Runtime logs
+*.log
+server.out.log
+server.err.log
+
+# Generated application data
+data/screenshots/
+data/logs/activity_log.jsonl
+
+# Keep the sample log for demos
+!data/logs/sample_activity_log.jsonl

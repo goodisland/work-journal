@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Private Summary</p>
+    <h2>自分用サマリー</h2>
+    <p class="muted">詳細ログは自分だけが見返す想定で、改善ポイントや切り替え傾向まで含めています。</p>
+  </div>
+  <div class="status-pill running">
+    {{ summary.total_minutes }} min
+  </div>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <h3>時間を多く使った作業</h3>
+    {% for item in summary.top_labels %}
+    <div class="row-between">
+      <span>{{ item.activity_label }}</span>
+      <strong>{{ item.minutes }} 分</strong>
+    </div>
+    {% else %}
+    <p class="muted">まだ集計対象のログがありません。</p>
+    {% endfor %}
+  </article>
+  <article class="card">
+    <h3>切り替えが多かった時間帯</h3>
+    {% for item in summary.busy_hours %}
+    <div class="row-between">
+      <span>{{ item.hour }}</span>
+      <strong>{{ item.count }} 回</strong>
+    </div>
+    {% else %}
+    <p class="muted">目立った切り替えはまだありません。</p>
+    {% endfor %}
+    <p class="muted">総切り替え回数: {{ summary.transition_count }} 回</p>
+  </article>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <h3>改善提案</h3>
+    <div class="stack-list">
+      {% for suggestion in summary.suggestions %}
+      <p>{{ suggestion }}</p>
+      {% else %}
+      <p class="muted">提案を出すだけのログがまだありません。</p>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="card">
+    <h3>長時間作業</h3>
+    {% for item in summary.long_running %}
+    <div class="row-between">
+      <span>{{ item.activity_label }}</span>
+      <strong>{{ item.minutes }} 分</strong>
+    </div>
+    {% else %}
+    <p class="muted">長時間のカテゴリはまだありません。</p>
+    {% endfor %}
+  </article>
+</section>
+
+<section class="card">
+  <h3>時系列まとめ</h3>
+  <div class="stack-list">
+    {% for item in summary.timeline %}
+    <div class="timeline-row compact">
+      <div>
+        <p class="item-title">{{ item.timestamp[11:16] }} / {{ item.activity_label }}</p>
+        <p class="muted">{{ item.activity_summary }}</p>
+      </div>
+      <div class="meta-right">
+        <span>{{ item.duration_minutes }} 分</span>
+      </div>
+    </div>
+    {% else %}
+    <p class="muted">まだログがありません。</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

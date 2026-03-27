@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Public Report</p>
+    <h2>公開用日報</h2>
+    <p class="muted">固有名詞や画面詳細を落とした、共有しやすい粒度のテンプレートです。</p>
+  </div>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <h3>サマリー項目</h3>
+    <div class="stack-list">
+      {% for item in report.report_items %}
+      <p>{{ item }}</p>
+      {% else %}
+      <p class="muted">まだ日報項目がありません。</p>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="card">
+    <h3>使い方メモ</h3>
+    <p class="muted">この文面はそのまま送信せず、人が最終確認してから使う前提です。</p>
+  </article>
+</section>
+
+<section class="card">
+  <h3>日報文</h3>
+  <textarea id="reportText" readonly>{{ report.report_text }}</textarea>
+  <button class="primary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('reportText').value)">コピー</button>
+</section>
+{% endblock %}

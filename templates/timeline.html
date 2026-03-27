@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Timeline</p>
+    <h2>時系列ログ</h2>
+    <p class="muted">記録元や信頼度も一緒に確認できます。生スクリーンショットは公開用に直接流さない前提です。</p>
+  </div>
+  <div class="status-pill {{ 'running' if recording else 'stopped' }}">
+    {{ "Recording" if recording else "Stopped" }}
+  </div>
+</section>
+
+<section class="timeline-grid">
+  {% for item in entries %}
+  <article class="card timeline-card">
+    <img src="/{{ item.screenshot_path }}" alt="screenshot thumbnail" class="thumb">
+    <div class="timeline-content">
+      <div class="row-between">
+        <h3>{{ item.activity_label }}</h3>
+        <span>{{ item.timestamp[11:16] }}</span>
+      </div>
+      <p>{{ item.activity_summary }}</p>
+      <p class="muted">{{ item.window_title or "タイトルなし" }}</p>
+      <div class="badge-row">
+        <span class="badge">{{ item.inference_source }}</span>
+        <span class="badge">confidence {{ "%.2f"|format(item.confidence) }}</span>
+        {% if item.ai_provider %}
+        <span class="badge">{{ item.ai_provider }}</span>
+        {% endif %}
+      </div>
+      {% if item.ai_error %}
+      <p class="warning">AI失敗、ルールベースで継続: {{ item.ai_error }}</p>
+      {% endif %}
+    </div>
+  </article>
+  {% else %}
+  <article class="card">
+    <p class="muted">ログがまだありません。</p>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}
