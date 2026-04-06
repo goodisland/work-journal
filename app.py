@@ -213,7 +213,7 @@ def export_template_reports(template_name: str, export_name: str, context: dict,
     html = template.render(payload)
     html_path = save_html(report_dir / f"{export_name}.html", html)
     title = context.get("title") or export_name
-    pdf_path, pdf_error = save_pdf(report_dir / f"{export_name}.pdf", title, html)
+    pdf_path, pdf_error = save_pdf(report_dir / f"{export_name}.pdf", title, html, payload=payload, export_name=export_name)
     return {
         "html_path": str(html_path.relative_to(BASE_DIR)).replace("\\", "/"),
         "pdf_path": str(pdf_path.relative_to(BASE_DIR)).replace("\\", "/") if pdf_path else "",
@@ -432,6 +432,8 @@ def build_base_context(request: Request, selected_date: date | None = None, show
     selected_sessions = get_sessions_for_date(target_date, task_lookup)
     import_message = localize_import_message(request.query_params.get("import_message", "").strip())
     import_status = request.query_params.get("import_status", "").strip()
+    task_message = request.query_params.get("task_message", "").strip()
+    task_status = request.query_params.get("task_status", "").strip()
     mode_status = build_mode_status(active_session, active_remote_session)
     return {
         "request": request,
@@ -467,6 +469,8 @@ def build_base_context(request: Request, selected_date: date | None = None, show
         "task_lookup": task_lookup,
         "import_message": import_message,
         "import_status": import_status,
+        "task_message": task_message,
+        "task_status": task_status,
         "mode_status": mode_status,
     }
 
@@ -701,7 +705,13 @@ def create_task(
     note: str = Form(""),
     color: str = Form("#0f766e"),
 ):
-    task_service.create_task([h1, h2, h3, h4, h5], note=note, color=color)
+    if not any(level.strip() for level in [h1, h2, h3, h4, h5]):
+        return _redirect_with_task_message(False, "タスク名を1つ以上入力してください。", "/tasks")
+
+    try:
+        task_service.create_task([h1, h2, h3, h4, h5], note=note, color=color)
+    except ValueError as exc:
+        return _redirect_with_task_message(False, str(exc), "/tasks")
     return RedirectResponse(url="/tasks", status_code=303)
 
 
@@ -716,7 +726,14 @@ def update_task(
     note: str = Form(""),
     color: str = Form("#0f766e"),
 ):
-    task_service.update_task(task_id, [h1, h2, h3, h4, h5], note=note, color=color)
+    redirect_to = f"/tasks/{task_id}/edit"
+    if not any(level.strip() for level in [h1, h2, h3, h4, h5]):
+        return _redirect_with_task_message(False, "空白のままでは更新できません。タスク名を入力してください。", redirect_to)
+
+    try:
+        task_service.update_task(task_id, [h1, h2, h3, h4, h5], note=note, color=color)
+    except ValueError as exc:
+        return _redirect_with_task_message(False, str(exc), redirect_to)
     return RedirectResponse(url="/tasks", status_code=303)
 
 
@@ -834,6 +851,15 @@ def _redirect_with_import_message(success: bool, message: str, redirect_to: str 
     status = "success" if success else "error"
     return RedirectResponse(
         url=f"{redirect_to}{separator}import_status={quote(status)}&import_message={quote(message)}",
+        status_code=303,
+    )
+
+
+def _redirect_with_task_message(success: bool, message: str, redirect_to: str = "/tasks") -> RedirectResponse:
+    separator = "&" if "?" in redirect_to else "?"
+    status = "success" if success else "error"
+    return RedirectResponse(
+        url=f"{redirect_to}{separator}task_status={quote(status)}&task_message={quote(message)}",
         status_code=303,
     )
 

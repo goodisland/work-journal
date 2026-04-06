@@ -116,7 +116,7 @@ work-journal/
 ### 前提
 
 - Windows 環境を想定
-- Python 3.13 系の実行環境があると安心
+- Python 3.11 系の実行環境（例: Conda `py311`）
 - OCR を使う場合は Tesseract OCR の別途インストールが必要
 
 ### 1. 依存関係を入れる
@@ -125,7 +125,11 @@ work-journal/
 python -m pip install -r requirements.txt
 ```
 
-Conda 環境 `py313` を使う場合は、同梱の起動スクリプトも使えます。
+Conda `py311` を使う場合は、`python` の向き違いを避けるため次のコマンドが確実です。
+
+```powershell
+C:\Users\<username>\anaconda3\envs\py311\python.exe -m pip install -r requirements.txt
+```
 
 ### 2. 環境変数を用意する
 
@@ -158,10 +162,10 @@ Copy-Item .env.example .env
 python app.py
 ```
 
-Conda `py313` 前提の起動:
+Conda `py311` 前提の起動:
 
 ```powershell
-.\run_py313.ps1
+.\run_py311.ps1
 ```
 
 起動後は次を開きます。
