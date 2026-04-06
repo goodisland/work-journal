@@ -37,9 +37,9 @@
         <section class="report-section">
           <h2 class="report-section-title">1. 本日の要約</h2>
           <div class="report-summary-box">
-            <p>主なタスクは {% if summary.task_totals %}<strong>{{ summary.task_totals[0].task_name }}</strong>{% else %}<strong>記録なし</strong>{% endif %} でした。</p>
-            <p>アクティビティ上位は {% if summary.top_labels %}{{ summary.top_labels | map(attribute='activity_label') | join(' / ') }}{% else %}なし{% endif %} です。</p>
-            <p>補足: {% if summary.suggestions %}{{ summary.suggestions[0] }}{% else %}特記事項はありません。{% endif %}</p>
+            <p>{{ summary.narrative.overview }}</p>
+            <p>{{ summary.narrative.detail }}</p>
+            <p><strong>次の着眼点:</strong> {{ summary.narrative.next_action }}</p>
           </div>
         </section>
 

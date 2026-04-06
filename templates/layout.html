@@ -108,6 +108,7 @@
         let lastState = JSON.stringify(initialState);
 
         const checkState = async () => {
+          if (window.__suspendUiReload) return;
           try {
             const response = await fetch('/api/ui-state', { cache: 'no-store' });
             if (!response.ok) return;

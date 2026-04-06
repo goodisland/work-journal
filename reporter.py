@@ -146,7 +146,8 @@ def _aggregate_remote_entries(entries: list[dict]) -> tuple[int, float, list[str
 def _build_private_narrative(summary: dict) -> dict:
     top_task = summary["task_totals"][0]["task_name"] if summary["task_totals"] else "明確な主タスクはありませんでした"
     top_label = summary["top_labels"][0]["activity_label"] if summary["top_labels"] else "活動ラベルは記録されていません"
-    command_sentence = f"コマンド実行は {summary['command_count']} 件" if summary["command_count"] else "コマンド実行は確認されませんでした"
+    task_count = len(summary["task_totals"])
+    command_sentence = f"コマンド実行は {summary['command_count']} 件あり" if summary["command_count"] else "コマンド実行は確認されませんでした"
     remote_sentence = (
         f"リモート作業は {summary['remote_session_count']} 回、合計 {summary['remote_minutes']} 分でした。"
         if summary["remote_session_count"]
@@ -158,10 +159,14 @@ def _build_private_narrative(summary: dict) -> dict:
         else "成果物として残したキャプチャはありませんでした。"
     )
     overview = (
-        f"この日の主な作業は「{top_task}」でした。"
-        f"活動ログ上では「{top_label}」が中心で、総作業時間は {summary['total_minutes']} 分です。"
+        f"この日は「{top_task}」を中心に進めました。"
+        f"活動ログでは「{top_label}」の比重が高く、総作業時間は {summary['total_minutes']} 分でした。"
     )
-    detail = f"{command_sentence}、編集ファイルは {summary['edited_file_count']} 件です。{remote_sentence}{artifact_sentence}"
+    detail = (
+        f"記録上は {task_count} 件のタスクに作業が紐づいており、{command_sentence}、"
+        f"編集ファイルは {summary['edited_file_count']} 件です。"
+        f"{remote_sentence}{artifact_sentence}"
+    )
     return {
         "overview": overview,
         "detail": detail,
@@ -173,9 +178,9 @@ def _build_public_narrative(summary: dict, task_names: list[str], progress: str,
     focus_text = "、".join(task_names[:3]) if task_names else "記録された作業項目はありません"
     outline = f"本日は {focus_text} を中心に進めました。総作業時間は {summary['total_minutes']} 分です。"
     support = (
-        f"成果物は {summary['artifact_count']} 件、主なリモート接続先は {', '.join(summary['remote_hosts'][:2])} です。"
+        f"成果物は {summary['artifact_count']} 件で、主なリモート接続先は {', '.join(summary['remote_hosts'][:2])} です。"
         if summary["remote_hosts"]
-        else f"成果物は {summary['artifact_count']} 件です。"
+        else f"成果物は {summary['artifact_count']} 件で、共有に使える記録が残っています。"
     )
     return {
         "outline": outline,
@@ -295,15 +300,15 @@ def build_public_report(entries: list[dict], sessions: list[dict] | None = None)
     if not task_names:
         task_names = ["この日の作業項目はありません。"]
 
-    progress = "進捗は記録されていますが、タスクの文脈が少なく詳細な説明は控えめです。"
+    progress = "進捗は記録されていますが、タスクの文脈が少ないため、現時点では概要中心の報告としています。"
     if summary["task_totals"]:
-        progress = f"主な進捗は {summary['task_totals'][0]['task_name']} を中心に進みました。"
+        progress = f"主な進捗は {summary['task_totals'][0]['task_name']} を中心に進め、関連する作業を順に整理しました。"
     if summary["edit_summaries"]:
-        progress = f"{progress} 代表的な変更は「{summary['edit_summaries'][0]}」です。"
+        progress = f"{progress} 代表的な変更として「{summary['edit_summaries'][0]}」を確認しています。"
 
-    tomorrow = "優先度の高い作業を継続し、引き継ぎ用の成果物を1つ残してください。"
+    tomorrow = "優先度の高い作業を継続し、関係者が状況を追いやすいよう成果物を1つ残す予定です。"
     if summary["top_files"]:
-        tomorrow = f"{summary['top_files'][0]['path']} 周辺の作業を継続し、引き継ぎ用の成果物を1つ残してください。"
+        tomorrow = f"次回は {summary['top_files'][0]['path']} 周辺の作業を継続し、引き継ぎに使える成果物を1つ残す予定です。"
 
     artifact_paths = [entry["screenshot_path"] for entry in _manual_artifact_entries(entries)]
     narrative = _build_public_narrative(summary, task_names, progress, tomorrow)
@@ -311,9 +316,9 @@ def build_public_report(entries: list[dict], sessions: list[dict] | None = None)
     report_lines = [
         "本日の作業報告",
         "",
-        narrative["outline"],
-        narrative["progress_paragraph"],
-        narrative["supporting_note"],
+        f"概要: {narrative['outline']}",
+        f"進捗: {narrative['progress_paragraph']}",
+        f"補足: {narrative['supporting_note']}",
         f"次のアクション: {narrative['next_action_paragraph']}",
     ]
 
@@ -387,9 +392,9 @@ def build_weekly_report(target_date: date, daily_packets: list[dict]) -> dict:
 
     key_tasks = [task for task, _count in task_counter.most_common(5) if task]
     overview = (
-        f"今週は {', '.join(key_tasks[:3])} を中心に進め、総作業時間は {total_minutes} 分でした。"
+        f"今週は {', '.join(key_tasks[:3])} を中心に進めました。総作業時間は {total_minutes} 分で、複数日の記録を通じて進捗を積み上げています。"
         if key_tasks
-        else f"今週の総作業時間は {total_minutes} 分でした。"
+        else f"今週の総作業時間は {total_minutes} 分でした。記録は残っていますが、主タスクは明確に分かれていません。"
     )
     remote_note = (
         f"リモート作業は合計 {total_remote_minutes} 分で、主な接続先は {', '.join(host for host, _ in remote_hosts.most_common(3))} です。"
@@ -397,17 +402,17 @@ def build_weekly_report(target_date: date, daily_packets: list[dict]) -> dict:
         else "リモート作業はありませんでした。"
     )
     next_action = (
-        f"来週は {key_tasks[0]} を軸に、成果物と変更点を早めに揃えると報告しやすくなります。"
+        f"来週は {key_tasks[0]} を軸に進め、変更点と成果物を早めに揃えて共有できる状態を作ります。"
         if key_tasks
-        else "来週は優先度の高い作業を明確にして、日次ごとに成果物を1つ残すと振り返りやすくなります。"
+        else "来週は優先度の高い作業を明確にし、日次ごとに成果物を1つ残して振り返りやすい形に整えます。"
     )
 
     weekly_lines = [
         f"週次報告 ({start_date.isoformat()} - {end_date.isoformat()})",
         "",
-        overview,
-        remote_note,
-        next_action,
+        f"総括: {overview}",
+        f"補足: {remote_note}",
+        f"来週の進め方: {next_action}",
     ]
 
     return {

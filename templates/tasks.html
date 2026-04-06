@@ -13,6 +13,11 @@
 
 <section class="grid two">
   <article class="card">
+    {% if task_message %}
+    <div class="status-pill {{ 'running' if task_status == 'success' else 'stopped' }}">
+      {{ task_message }}
+    </div>
+    {% endif %}
     <div class="row-between">
       <div>
         <h3>{{ "タスクを更新" if editing_task else "新しいタスク" }}</h3>
@@ -22,9 +27,9 @@
       <a href="/tasks" class="button-link">新規作成へ戻る</a>
       {% endif %}
     </div>
-    <form method="post" action="{% if editing_task %}/tasks/{{ editing_task.id }}/update{% else %}/tasks{% endif %}" class="stack-form">
+    <form method="post" action="{% if editing_task %}/tasks/{{ editing_task.id }}/update{% else %}/tasks{% endif %}" class="stack-form js-task-form">
       <label>h1
-        <input type="text" name="h1" list="h1-options" value="{{ editing_task.levels[0] if editing_task and editing_task.levels|length > 0 else '' }}" placeholder="例: 研究">
+        <input type="text" name="h1" list="h1-options" value="{{ editing_task.levels[0] if editing_task and editing_task.levels|length > 0 else '' }}" placeholder="例: 研究" required>
       </label>
       <label>h2
         <input type="text" name="h2" list="h2-options" value="{{ editing_task.levels[1] if editing_task and editing_task.levels|length > 1 else '' }}" placeholder="例: モデル評価">
@@ -97,4 +102,45 @@
     </div>
   </article>
 </section>
+<script>
+  (() => {
+    const form = document.querySelector('.js-task-form');
+    if (!form) return;
+
+    let isDirty = false;
+    const setReloadSuspended = (value) => {
+      window.__suspendUiReload = value;
+    };
+
+    form.addEventListener('input', () => {
+      isDirty = true;
+      setReloadSuspended(true);
+    });
+
+    form.addEventListener('focusin', () => {
+      setReloadSuspended(true);
+    });
+
+    form.addEventListener('focusout', () => {
+      window.setTimeout(() => {
+        if (!form.contains(document.activeElement) && !isDirty) {
+          setReloadSuspended(false);
+        }
+      }, 0);
+    });
+
+    form.addEventListener('submit', () => {
+      isDirty = false;
+      setReloadSuspended(false);
+    });
+
+    form.querySelectorAll('input[type="text"]').forEach((input) => {
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+        }
+      });
+    });
+  })();
+</script>
 {% endblock %}
