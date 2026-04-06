@@ -99,6 +99,7 @@ def decorate_session(session: dict, task_lookup: dict[str, dict]) -> dict:
     task = task_lookup.get(item.get("task_id", ""))
     if task and not item.get("task_color"):
         item["task_color"] = task.get("color", "")
+    item["task_name"] = item.get("task_title") or item.get("task_path_text") or "Task"
     item["duration_minutes"] = session_minutes(item)
     return item
 
@@ -282,19 +283,6 @@ def build_calendar_view(selected_date: date, task_lookup: dict[str, dict]) -> di
             }
         )
 
-    selected_day_sessions = [
-        {
-            "task_name": session.get("task_title") or session.get("task_path_text") or "Task",
-            "task_path_text": session.get("task_path_text", ""),
-            "task_color": session.get("task_color") or "#94a3b8",
-            "started_at": session.get("started_at", ""),
-            "ended_at": session.get("ended_at", ""),
-            "duration_minutes": session.get("duration_minutes", 0.0),
-        }
-        for session in month_sessions
-        if session.get("started_at", "").startswith(selected_date.isoformat())
-    ]
-
     return {
         "month_label": calendar_month.strftime("%Y-%m"),
         "month_anchor_iso": calendar_month.isoformat(),
@@ -303,7 +291,6 @@ def build_calendar_view(selected_date: date, task_lookup: dict[str, dict]) -> di
         "weeks": weeks,
         "legend": task_legend,
         "month_total_minutes": month_total_minutes,
-        "selected_day_sessions": selected_day_sessions,
     }
 
 
@@ -374,6 +361,11 @@ def build_base_context(request: Request, selected_date: date | None = None, show
         "today_iso": date.today().isoformat(),
         "current_path": request.url.path,
         "current_url": str(request.url),
+        "ui_state": {
+            "recording": recorder_service.is_running,
+            "active_task_id": active_session.get("task_id", "") if active_session else "",
+            "active_session_started_at": active_session.get("started_at", "") if active_session else "",
+        },
         "selected_date": target_date,
         "show_log_filters": show_log_filters,
         "date_browser": build_date_browser(target_date),
@@ -381,6 +373,18 @@ def build_base_context(request: Request, selected_date: date | None = None, show
         "day_schedule": build_day_schedule(target_date, selected_sessions),
         "task_lookup": task_lookup,
     }
+
+
+@app.get("/api/ui-state")
+def ui_state():
+    active_session = task_service.get_active_session()
+    return JSONResponse(
+        {
+            "recording": recorder_service.is_running,
+            "active_task_id": active_session.get("task_id", "") if active_session else "",
+            "active_session_started_at": active_session.get("started_at", "") if active_session else "",
+        }
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -405,6 +409,22 @@ def index(request: Request):
         }
     )
     return templates.TemplateResponse("index.html", context)
+
+
+@app.get("/calendar-day", response_class=HTMLResponse)
+def calendar_day_detail(request: Request):
+    selected_date = resolve_selected_date(request)
+    task_lookup = get_task_lookup()
+    sessions = get_sessions_for_date(selected_date, task_lookup)
+    context = build_base_context(request, selected_date=selected_date)
+    context.update(
+        {
+            "title": f"{selected_date.isoformat()} details",
+            "sessions": sessions,
+            "summary": get_summary_for_date(selected_date, task_lookup),
+        }
+    )
+    return templates.TemplateResponse("calendar_day_detail.html", context)
 
 
 @app.get("/tasks", response_class=HTMLResponse)

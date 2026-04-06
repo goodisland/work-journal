@@ -93,11 +93,21 @@ class RecorderService:
             return True
 
     def stop(self) -> bool:
+        thread_to_join: threading.Thread | None = None
         with self._lock:
             if not self.is_running:
+                self._thread = None
                 return False
             self._stop_event.set()
-            return True
+            thread_to_join = self._thread
+
+        if thread_to_join and thread_to_join is not threading.current_thread():
+            thread_to_join.join(timeout=max(1.0, self.interval_seconds + 1.0))
+
+        with self._lock:
+            if self._thread is thread_to_join and not (thread_to_join and thread_to_join.is_alive()):
+                self._thread = None
+        return True
 
     @property
     def is_running(self) -> bool:

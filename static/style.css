@@ -23,6 +23,28 @@ body {
   min-height: 100vh;
 }
 
+.popup-body {
+  background:
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 26%),
+    linear-gradient(180deg, #f6efe5, #fbf8f3);
+}
+
+.popup-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.popup-hero {
+  align-items: center;
+}
+
+.popup-grid {
+  align-items: start;
+}
+
 .mini-body {
   min-height: 100vh;
   background: linear-gradient(180deg, #eef3f8, #f7fafc);
@@ -742,7 +764,9 @@ button,
   display: flex;
   justify-content: center;
   align-items: center;
+  gap: 8px;
   padding-bottom: 2px;
+  min-width: 0;
 }
 
 .status-lamp {
@@ -766,6 +790,16 @@ button,
     0 0 0 0 rgba(239, 68, 68, 0.28),
     0 0 12px rgba(239, 68, 68, 0.32);
   animation: lamp-pulse 2.2s ease-in-out infinite;
+}
+
+.mini-task-name {
+  min-width: 0;
+  max-width: 170px;
+  font-size: 0.86rem;
+  color: #475569;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes lamp-pulse {

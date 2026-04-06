@@ -95,5 +95,28 @@
         {% block content %}{% endblock %}
       </main>
     </div>
+    <script>
+      (() => {
+        const initialState = {{ ui_state | tojson }};
+        let lastState = JSON.stringify(initialState);
+
+        const checkState = async () => {
+          try {
+            const response = await fetch('/api/ui-state', { cache: 'no-store' });
+            if (!response.ok) return;
+            const nextState = await response.json();
+            const serialized = JSON.stringify(nextState);
+            if (serialized !== lastState) {
+              window.location.reload();
+              return;
+            }
+          } catch (_) {
+            return;
+          }
+        };
+
+        window.setInterval(checkState, 2000);
+      })();
+    </script>
   </body>
 </html>

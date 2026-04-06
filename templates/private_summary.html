@@ -2,9 +2,9 @@
 {% block content %}
 <section class="hero-card">
   <div>
-    <p class="eyebrow">Private Summary</p>
-    <h2>{{ date_browser.selected_date_label }} summary</h2>
-    <p class="muted">Task time, command history, and file edits are combined into a more concrete daily summary.</p>
+    <p class="eyebrow">日次サマリー</p>
+    <h2>{{ date_browser.selected_date_label }} のサマリー</h2>
+    <p class="muted">作業時間、コマンド履歴、ファイル編集をまとめて、その日の動きを具体的に確認できます。</p>
   </div>
   <div class="status-pill running">
     {{ summary.total_minutes }} min
@@ -13,7 +13,7 @@
 
 <section class="grid two">
   <article class="card">
-    <h3>Task totals</h3>
+    <h3>タスク合計</h3>
     <div class="stack-list">
       {% for item in summary.task_totals %}
       <div class="row-between task-summary-row">
@@ -24,21 +24,21 @@
         <strong>{{ item.minutes }} min</strong>
       </div>
       {% else %}
-      <p class="muted">No task sessions were recorded for this day.</p>
+      <p class="muted">この日のタスク記録はありません。</p>
       {% endfor %}
     </div>
   </article>
 
   <article class="card">
-    <h3>Signals</h3>
+    <h3>指標</h3>
     <div class="stack-list">
-      <div class="row-between"><span>Transitions</span><strong>{{ summary.transition_count }}</strong></div>
-      <div class="row-between"><span>Artifacts</span><strong>{{ summary.artifact_count }}</strong></div>
-      <div class="row-between"><span>Manual captures</span><strong>{{ summary.manual_capture_count }}</strong></div>
-      <div class="row-between"><span>Commands</span><strong>{{ summary.command_count }}</strong></div>
-      <div class="row-between"><span>Edited files</span><strong>{{ summary.edited_file_count }}</strong></div>
-      <div class="row-between"><span>Added lines</span><strong>{{ summary.diff_stats.added_lines }}</strong></div>
-      <div class="row-between"><span>Removed lines</span><strong>{{ summary.diff_stats.removed_lines }}</strong></div>
+      <div class="row-between"><span>切り替え回数</span><strong>{{ summary.transition_count }}</strong></div>
+      <div class="row-between"><span>成果物</span><strong>{{ summary.artifact_count }}</strong></div>
+      <div class="row-between"><span>手動キャプチャ</span><strong>{{ summary.manual_capture_count }}</strong></div>
+      <div class="row-between"><span>コマンド数</span><strong>{{ summary.command_count }}</strong></div>
+      <div class="row-between"><span>編集ファイル数</span><strong>{{ summary.edited_file_count }}</strong></div>
+      <div class="row-between"><span>追加行数</span><strong>{{ summary.diff_stats.added_lines }}</strong></div>
+      <div class="row-between"><span>削除行数</span><strong>{{ summary.diff_stats.removed_lines }}</strong></div>
       {% for item in summary.busy_hours %}
       <div class="row-between"><span>{{ item.hour }}</span><strong>{{ item.count }}</strong></div>
       {% endfor %}
@@ -48,16 +48,18 @@
 
 <section class="grid two">
   <article class="card">
-    <h3>Suggestions</h3>
+    <h3>提案</h3>
     <div class="stack-list">
       {% for suggestion in summary.suggestions %}
       <p>{{ suggestion }}</p>
+      {% else %}
+      <p class="muted">この日の提案はまだありません。</p>
       {% endfor %}
     </div>
   </article>
 
   <article class="card">
-    <h3>Top activity labels</h3>
+    <h3>上位アクティビティ</h3>
     <div class="stack-list">
       {% for item in summary.top_labels %}
       <div class="row-between">
@@ -65,7 +67,7 @@
         <strong>{{ item.minutes }} min</strong>
       </div>
       {% else %}
-      <p class="muted">No activity labels were detected.</p>
+      <p class="muted">アクティビティラベルは検出されませんでした。</p>
       {% endfor %}
     </div>
   </article>
@@ -73,7 +75,7 @@
 
 <section class="grid two">
   <article class="card">
-    <h3>Commands</h3>
+    <h3>コマンド</h3>
     <div class="stack-list">
       {% for item in summary.top_commands %}
       <div class="row-between">
@@ -81,13 +83,13 @@
         <strong>{{ item.count }}</strong>
       </div>
       {% else %}
-      <p class="muted">No commands were observed for this day.</p>
+      <p class="muted">この日に実行されたコマンドはありません。</p>
       {% endfor %}
     </div>
   </article>
 
   <article class="card">
-    <h3>Files and directories</h3>
+    <h3>ファイルとディレクトリ</h3>
     <div class="stack-list">
       {% for item in summary.top_files %}
       <div class="row-between">
@@ -95,7 +97,7 @@
         <strong>{{ item.count }}</strong>
       </div>
       {% else %}
-      <p class="muted">No saved file changes were detected.</p>
+      <p class="muted">保存されたファイル変更はありません。</p>
       {% endfor %}
       {% for path in summary.top_directories %}
       <p class="muted">{{ path }}</p>
@@ -105,18 +107,18 @@
 </section>
 
 <section class="card">
-  <h3>Edit highlights</h3>
+  <h3>編集ハイライト</h3>
   <div class="stack-list">
     {% for item in summary.edit_summaries %}
     <p>{{ item }}</p>
     {% else %}
-    <p class="muted">No edit summaries are available yet.</p>
+    <p class="muted">編集サマリーはまだありません。</p>
     {% endfor %}
   </div>
 </section>
 
 <section class="card">
-  <h3>Sessions</h3>
+  <h3>セッション</h3>
   <div class="stack-list">
     {% for session in sessions %}
     <div class="timeline-row compact">
@@ -125,15 +127,15 @@
           <span class="task-dot" style="--task-color: {{ session.task_color or '#94a3b8' }}"></span>
           {{ session.task_path_text }}
         </p>
-        <p class="muted">{{ session.started_at[11:16] }} - {{ session.ended_at[11:16] if session.ended_at else "running" }}</p>
+        <p class="muted">{{ session.started_at[11:16] }} - {{ session.ended_at[11:16] if session.ended_at else "進行中" }}</p>
       </div>
       <div class="meta-right">
         <span>{{ session.duration_minutes }} min</span>
-        <span>{{ session.screenshots|length }} captures</span>
+        <span>{{ session.screenshots|length }} 件</span>
       </div>
     </div>
     {% else %}
-    <p class="muted">No sessions were recorded for this day.</p>
+    <p class="muted">この日のセッション記録はありません。</p>
     {% endfor %}
   </div>
 </section>

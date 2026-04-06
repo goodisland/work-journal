@@ -4,7 +4,7 @@
   <div>
     <p class="eyebrow">Dashboard</p>
     <h2>{{ date_browser.selected_date_label }} の作業状況</h2>
-    <p class="muted">初期表示は今日のログです。日付を切り替えると過去の作業も追えます。</p>
+    <p class="muted">今日のログやタスク状況を確認しながら、必要な操作にすぐ移れるダッシュボードです。</p>
   </div>
   <div class="status-pill {{ 'running' if recording else 'stopped' }}">
     {{ "Recording" if recording else "Stopped" }}
@@ -31,9 +31,9 @@
     <div class="row-between">
       <div>
         <h3>タスク開始</h3>
-        <p class="muted">色付きで管理したいタスクをここから開始できます。</p>
+        <p class="muted">登録済みタスクから選んで、そのまま記録を始められます。</p>
       </div>
-      <a href="/tasks" class="button-link">タスク編集</a>
+      <a href="/tasks" class="button-link">タスク管理</a>
     </div>
     <div class="stack-list grouped-stack">
       {% for group in task_groups %}
@@ -53,13 +53,17 @@
               </p>
               <p class="muted">{{ task.path_text }}</p>
             </div>
+            {% if active_session and active_session.task_id == task.id %}
+            <button type="submit" class="primary" disabled>進行中</button>
+            {% else %}
             <button type="submit" class="ghost">開始</button>
+            {% endif %}
           </form>
           {% endfor %}
         </div>
       </section>
       {% else %}
-      <p class="muted">まだタスクがありません。</p>
+      <p class="muted">まだタスクが登録されていません。</p>
       {% endfor %}
     </div>
     {% if active_session %}
@@ -90,7 +94,7 @@
           {% endfor %}
         </select>
       </label>
-      <label>AI 信頼しきい値
+      <label>AI 信頼度しきい値
         <input type="number" step="0.05" min="0" max="1" name="ai_threshold" value="{{ settings.ai_threshold }}">
       </label>
       <div class="button-row">
@@ -107,7 +111,7 @@
     <div class="row-between">
       <div>
         <h3>月間カレンダー</h3>
-        <p class="muted">Google カレンダーの月表示に近い骨格で、日ごとの作業を一覧できます。</p>
+        <p class="muted">日付をクリックすると、その日の詳細を別ウィンドウで開きます。</p>
       </div>
     </div>
 
@@ -131,7 +135,7 @@
       <div class="calendar-grid">
         {% for week in calendar_view.weeks %}
           {% for day in week %}
-          <a href="/?date={{ day.date_iso }}" class="calendar-day googleish-day {{ 'muted-day' if not day.is_current_month else '' }} {{ 'selected' if day.is_selected else '' }}">
+          <a href="/calendar-day?date={{ day.date_iso }}" class="calendar-day googleish-day js-calendar-popup {{ 'muted-day' if not day.is_current_month else '' }} {{ 'selected' if day.is_selected else '' }}">
             <div class="calendar-day-head">
               <span class="calendar-day-number {{ 'today-mark' if day.is_today else '' }}">{{ day.day_number }}</span>
               {% if day.total_minutes %}
@@ -154,7 +158,7 @@
       </div>
     </div>
 
-    <div class="calendar-footer grid two compact-grid">
+    <div class="calendar-footer">
       <div class="calendar-legend">
         <p class="muted">当月合計 {{ calendar_view.month_total_minutes }} min</p>
         <div class="legend-list">
@@ -169,50 +173,11 @@
           {% endfor %}
         </div>
       </div>
-
-      <div class="selected-day-panel">
-        <p class="eyebrow">Selected Day</p>
-        <h4>{{ date_browser.selected_date_label }}</h4>
-        <p class="muted">合計 {{ day_schedule.day_total_minutes }} min</p>
-        <div class="stack-list">
-          {% for session in calendar_view.selected_day_sessions %}
-          <div class="selected-session-row">
-            <span class="task-dot" style="--task-color: {{ session.task_color }}"></span>
-            <div class="selected-session-text">
-              <strong>{{ session.task_name }}</strong>
-              <p class="muted">{{ session.started_at[11:16] }} - {{ session.ended_at[11:16] if session.ended_at else "進行中" }} / {{ session.duration_minutes }} min</p>
-            </div>
-          </div>
-          {% else %}
-          <p class="muted">この日のセッションはありません。</p>
-          {% endfor %}
-        </div>
-        <div class="day-schedule">
-          {% for row in day_schedule.rows %}
-          <div class="day-schedule-row">
-            <div class="day-schedule-hour">{{ row.hour_label }}</div>
-            <div class="day-schedule-events">
-              {% for item in row.entries %}
-              <div class="day-schedule-item">
-                <span class="task-dot" style="--task-color: {{ item.task_color }}"></span>
-                <div class="selected-session-text">
-                  <strong>{{ item.task_name }}</strong>
-                  <p class="muted">{{ item.start_label }} - {{ item.end_label }} / {{ item.minutes }} min</p>
-                </div>
-              </div>
-              {% else %}
-              <div class="day-schedule-empty">-</div>
-              {% endfor %}
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
     </div>
   </article>
 
   <article class="card">
-    <h3>{{ date_browser.selected_date_label }} のタスク内訳</h3>
+    <h3>{{ date_browser.selected_date_label }} のタスク集計</h3>
     <div class="stack-list">
       {% for item in summary.task_totals %}
       <div class="row-between task-summary-row">
@@ -223,11 +188,11 @@
         <strong>{{ item.minutes }} min</strong>
       </div>
       {% else %}
-      <p class="muted">この日のタスク実績はまだありません。</p>
+      <p class="muted">この日のタスク実績はありません。</p>
       {% endfor %}
     </div>
     <div class="note-block">
-      <p>最新表示時刻: {{ now_text }}</p>
+      <p>最終表示時刻: {{ now_text }}</p>
       <p>ログ件数: {{ entries|length }}</p>
     </div>
     <h3>最新ログ</h3>
@@ -254,4 +219,16 @@
     </div>
   </article>
 </section>
+
+<script>
+  (() => {
+    const popupFeatures = "width=960,height=760,resizable=yes,scrollbars=yes";
+    document.querySelectorAll(".js-calendar-popup").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        window.open(link.href, "calendarDayDetail", popupFeatures);
+      });
+    });
+  })();
+</script>
 {% endblock %}

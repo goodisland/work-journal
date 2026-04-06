@@ -12,6 +12,7 @@
         {% if active_session %}
         <div class="mini-lamp-row" aria-label="recording status">
           <span class="status-lamp {{ 'is-recording' if recording else 'is-idle' }}"></span>
+          <span class="mini-task-name" title="{{ active_session.task_title }}">{{ active_session.task_title }}</span>
         </div>
         <div class="mini-actions">
           <form method="post" action="/tasks/capture">
@@ -47,5 +48,28 @@
         {% endif %}
       </section>
     </main>
+    <script>
+      (() => {
+        const initialState = {{ ui_state | tojson }};
+        let lastState = JSON.stringify(initialState);
+
+        const checkState = async () => {
+          try {
+            const response = await fetch('/api/ui-state', { cache: 'no-store' });
+            if (!response.ok) return;
+            const nextState = await response.json();
+            const serialized = JSON.stringify(nextState);
+            if (serialized !== lastState) {
+              window.location.reload();
+              return;
+            }
+          } catch (_) {
+            return;
+          }
+        };
+
+        window.setInterval(checkState, 1200);
+      })();
+    </script>
   </body>
 </html>

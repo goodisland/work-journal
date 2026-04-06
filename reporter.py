@@ -167,17 +167,17 @@ def build_private_summary(entries: list[dict], sessions: list[dict] | None = Non
 
     suggestions: list[str] = []
     if not sessions:
-        suggestions.append("Start a task before recording to make your log easier to review later.")
+        suggestions.append("記録を始める前にタスクを開始しておくと、あとからログを見返しやすくなります。")
     if transitions >= 6:
-        suggestions.append("You switched contexts often. Grouping similar work may improve focus.")
+        suggestions.append("作業の切り替えが多めでした。似た作業をまとめると集中しやすくなるかもしれません。")
     if manual_capture_count == 0 and sessions:
-        suggestions.append("Add a manual capture when you finish a meaningful milestone.")
+        suggestions.append("区切りのよいタイミングで手動キャプチャを残すと、進捗を追いやすくなります。")
     if command_count == 0:
-        suggestions.append("Command capture is empty so shell activity may be under-reported.")
+        suggestions.append("コマンド記録が空なので、シェル作業が十分に反映されていない可能性があります。")
     if edited_file_count == 0 and entries:
-        suggestions.append("No saved file changes were detected. Unsaved edits will not appear yet.")
+        suggestions.append("保存されたファイル変更は検出されませんでした。未保存の編集はまだ反映されません。")
     if not suggestions:
-        suggestions.append("Task tracking and activity logging look healthy for this day.")
+        suggestions.append("この日はタスク記録とアクティビティ記録が安定して取れています。")
 
     return {
         "total_minutes": total_minutes,
@@ -209,63 +209,63 @@ def build_public_report(entries: list[dict], sessions: list[dict] | None = None)
     summary = build_private_summary(entries, sessions=sessions)
     task_names = [item["task_name"] for item in summary["task_totals"][:3]]
     if not task_names:
-        task_names = ["No tracked tasks for the selected day."]
+        task_names = ["選択日の記録タスクはありません。"]
 
-    progress = "Tracked work and context switches were summarized from today's activity."
+    progress = "この日の作業内容と切り替え状況をもとに進捗をまとめました。"
     if summary["task_totals"]:
-        progress = f"Primary focus was {summary['task_totals'][0]['task_name']}."
+        progress = f"主な作業対象は {summary['task_totals'][0]['task_name']} でした。"
     if summary["edit_summaries"]:
-        progress = f"{progress} Recent code changes: {summary['edit_summaries'][0]}"
+        progress = f"{progress} 直近の変更内容: {summary['edit_summaries'][0]}"
 
-    tomorrow = "Continue the highest-priority task and capture one milestone artifact."
+    tomorrow = "優先度の高いタスクを継続し、節目で成果物を1件残してください。"
     if summary["top_files"]:
-        tomorrow = f"Continue work around {summary['top_files'][0]['path']} and capture one milestone artifact."
-    concerns = "No major blockers were identified from the tracked activity."
+        tomorrow = f"{summary['top_files'][0]['path']} 周辺の作業を継続し、節目で成果物を1件残してください。"
+    concerns = "記録されたアクティビティからは大きな懸念は見つかりませんでした。"
     if summary["transition_count"] >= 6:
-        concerns = "Frequent context switching may have reduced focus."
+        concerns = "作業の切り替えが多く、集中が分散していた可能性があります。"
     elif summary["command_count"] == 0:
-        concerns = "Command history could not be observed, so shell work may be missing."
+        concerns = "コマンド履歴を確認できなかったため、シェル作業が十分に反映されていない可能性があります。"
 
     artifact_paths = [entry["screenshot_path"] for entry in _manual_artifact_entries(entries)]
 
-    report_lines = ["Today's work"]
+    report_lines = ["本日の作業"]
     for item in task_names:
         report_lines.append(f"- {item}")
     report_lines.extend(
         [
             "",
-            "Progress",
+            "進捗",
             f"- {progress}",
             "",
-            "Next",
+            "次のアクション",
             f"- {tomorrow}",
             "",
-            "Concerns",
+            "懸念点",
             f"- {concerns}",
             "",
-            "Artifacts",
-            f"- Manual captures: {summary['manual_capture_count']}",
-            f"- Artifact count: {summary['artifact_count']}",
+            "成果物",
+            f"- 手動キャプチャ: {summary['manual_capture_count']}",
+            f"- 成果物数: {summary['artifact_count']}",
             "",
-            "Development signals",
-            f"- Commands observed: {summary['command_count']}",
-            f"- Files edited: {summary['edited_file_count']}",
+            "開発シグナル",
+            f"- コマンド数: {summary['command_count']}",
+            f"- 編集ファイル数: {summary['edited_file_count']}",
         ]
     )
     if summary["top_commands"]:
-        report_lines.append(f"- Top command: {summary['top_commands'][0]['command']}")
+        report_lines.append(f"- 最多コマンド: {summary['top_commands'][0]['command']}")
     if summary["top_files"]:
-        report_lines.append(f"- Top file: {summary['top_files'][0]['path']}")
+        report_lines.append(f"- 主なファイル: {summary['top_files'][0]['path']}")
     if summary["edit_summaries"]:
-        report_lines.append("- Edit highlights:")
+        report_lines.append("- 編集ハイライト:")
         for item in summary["edit_summaries"][:3]:
             report_lines.append(f"- {item}")
     if summary["top_commands"]:
-        report_lines.append("- Commands:")
+        report_lines.append("- コマンド一覧:")
         for item in summary["top_commands"][:3]:
             report_lines.append(f"- {item['command']} x{item['count']}")
     if summary["top_files"]:
-        report_lines.append("- Files:")
+        report_lines.append("- ファイル一覧:")
         for item in summary["top_files"][:3]:
             report_lines.append(f"- {item['path']} x{item['count']}")
 

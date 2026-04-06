@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ date_browser.selected_date_label }} details</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  </head>
+  <body class="popup-body">
+    <main class="popup-shell">
+      <section class="hero-card popup-hero">
+        <div>
+          <p class="eyebrow">Day Detail</p>
+          <h2>{{ date_browser.selected_date_label }}</h2>
+          <p class="muted">この日の作業詳細を時系列で確認できます。</p>
+        </div>
+        <div class="status-pill running">
+          {{ day_schedule.day_total_minutes }} min
+        </div>
+      </section>
+
+      <section class="popup-grid">
+        <article class="card">
+          <h3>タスク合計</h3>
+          <div class="stack-list">
+            {% for item in summary.task_totals %}
+            <div class="row-between task-summary-row">
+              <span class="task-inline">
+                <span class="task-dot" style="--task-color: {{ item.task_color or '#94a3b8' }}"></span>
+                {{ item.task_name }}
+              </span>
+              <strong>{{ item.minutes }} min</strong>
+            </div>
+            {% else %}
+            <p class="muted">この日のセッションはありません。</p>
+            {% endfor %}
+          </div>
+        </article>
+      </section>
+
+      <section class="card">
+        <div class="row-between">
+          <div>
+            <p class="eyebrow">Schedule</p>
+            <h3>時間帯ごとの内訳</h3>
+          </div>
+          <button type="button" class="button-link" onclick="window.close()">閉じる</button>
+        </div>
+        <div class="day-schedule">
+          {% for row in day_schedule.rows %}
+          <div class="day-schedule-row">
+            <div class="day-schedule-hour">{{ row.hour_label }}</div>
+            <div class="day-schedule-events">
+              {% for item in row.entries %}
+              <div class="day-schedule-item">
+                <span class="task-dot" style="--task-color: {{ item.task_color }}"></span>
+                <div class="selected-session-text">
+                  <strong>{{ item.task_name }}</strong>
+                  <p class="muted">{{ item.start_label }} - {{ item.end_label }} / {{ item.minutes }} min</p>
+                  {% if item.task_path_text and item.task_path_text != item.task_name %}
+                  <p class="muted clamp-one">{{ item.task_path_text }}</p>
+                  {% endif %}
+                </div>
+              </div>
+              {% else %}
+              <div class="day-schedule-empty">-</div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
