@@ -1,149 +1,240 @@
-# Work Journal Mock
+# Work Journal
 
-PC上の作業を一定間隔で記録し、振り返り用の詳細ログと共有向けの日報を分けて確認できるローカルWebアプリのモックです。監視目的ではなく、本人の振り返り支援と日報作成支援を意図しています。
+ローカル PC 上の作業を、スクリーンショットとタスク単位で記録・要約する FastAPI 製の Web アプリです。  
+「今どのタスクに時間を使っていたか」「どんな画面を見ていたか」「その日の進捗をどう共有するか」を、軽量なローカル保存で追えるようにしています。
 
-## 特徴
+## 概要
 
-- 既定では60秒ごとのスクリーンショット保存を行うローカル記録
-- アクティブウィンドウタイトルとルールベース分類による簡易推定
-- 低信頼時のみAI補完を挟める構造
-- 自分用サマリーと公開用日報を別画面で確認
-- JSONL保存で扱いやすく、後からOCRやAI連携を差し込みやすい構成
+このアプリでできること:
+
+- タスクを階層付きで登録し、作業開始・停止を記録する
+- 作業中の画面を定期または手動でキャプチャする
+- アクティブウィンドウ名、OCR、AI 判定を使って作業内容を要約する
+- 日次サマリー、公開レポート、成果物一覧を画面で確認する
+- 月間カレンダーから、日単位の詳細を別ウィンドウで確認する
+- ログやタスク情報を JSON / JSONL でローカル保存する
+
+## スクリーンショット
+
+### ダッシュボード
+
+![ダッシュボード](docs/screenshots/dashboard.png)
+
+### 日次サマリー
+
+![日次サマリー](docs/screenshots/private-summary.png)
+
+### 公開レポート
+
+![公開レポート](docs/screenshots/public-report.png)
+
+### 日別詳細ポップアップ
+
+![日別詳細](docs/screenshots/calendar-day.png)
+
+スクリーンショット元ファイル:
+
+- `docs/screenshots/dashboard.png`
+- `docs/screenshots/private-summary.png`
+- `docs/screenshots/public-report.png`
+- `docs/screenshots/calendar-day.png`
+
+## 主な機能
+
+### 1. タスク管理
+
+- `h1` から `h5` までの階層でタスクを定義
+- タスクごとに色を設定
+- タスク開始時にアクティブセッションを持ち、停止時にセッションログへ保存
+
+### 2. スクリーンショット記録
+
+- `mss` を使って画面をキャプチャ
+- 定期記録と手動記録の両方に対応
+- 手動キャプチャはアクティブタスクの成果物として紐付け
+
+### 3. 作業内容の分類
+
+- アクティブウィンドウ名からルールベースで活動を推定
+- OCR を有効化すると、画像から文字を抽出して分類精度を補強
+- ルールベースの信頼度が低い場合のみ、任意で AI 判定へフォールバック
+
+### 4. レポート画面
+
+- ダッシュボード
+- タスク管理
+- タイムライン
+- 日次サマリー
+- 公開レポート
+- 成果物一覧
+- フォーカスモード
+- ミニコントロール
+
+### 5. ローカル保存
+
+- スクリーンショット: `data/screenshots/YYYY-MM-DD/`
+- アクティビティログ: `data/logs/activity_log.jsonl`
+- タスクセッションログ: `data/logs/task_sessions.jsonl`
+- タスク定義: `data/tasks.json`
+- アクティブセッション: `data/active_task_session.json`
+
+## 技術スタック
+
+- Python
+- FastAPI
+- Jinja2
+- Uvicorn
+- Pillow
+- mss
+- pytesseract
+- python-dotenv
 
 ## ディレクトリ構成
 
-```txt
+```text
 work-journal/
-  app.py
-  recorder.py
-  analyzer.py
-  reporter.py
-  storage.py
-  sample_data.py
-  ai_clients/
-  prompts/
-  templates/
-  static/
-  data/
+  ai_clients/                AI クライアント実装
+  data/                      ローカル保存データ
+  docs/screenshots/          README 用スクリーンショット
+  prompts/                   AI 判定用プロンプト
+  static/                    CSS など静的ファイル
+  templates/                 Jinja2 テンプレート
+  activity_context.py        コマンド、編集ファイルなどの収集
+  analyzer.py                OCR / ルールベース / AI 判定
+  app.py                     FastAPI エントリポイント
+  recorder.py                スクリーンショット記録サービス
+  reporter.py                日次サマリー / 公開レポート生成
+  sample_data.py             初回起動用サンプルデータ生成
+  storage.py                 保存先と JSON / JSONL 操作
+  task_manager.py            タスク管理とセッション管理
   requirements.txt
   README.md
 ```
 
-## セットアップ方法
+## セットアップ
 
-`anaconda` の `py313` 環境を使う前提です。
+### 前提
+
+- Windows 環境を想定
+- Python 3.13 系の実行環境があると安心
+- OCR を使う場合は Tesseract OCR の別途インストールが必要
+
+### 1. 依存関係を入れる
 
 ```powershell
-cd work-journal
-conda activate py313
 python -m pip install -r requirements.txt
 ```
 
-OCRを使う場合は別途Tesseract本体のインストールが必要です。未導入でもアプリは動作し、OCRだけ無効になります。
+Conda 環境 `py313` を使う場合は、同梱の起動スクリプトも使えます。
 
-## 起動方法
-
-最も簡単な起動方法:
+### 2. 環境変数を用意する
 
 ```powershell
-cd work-journal
-conda activate py313
+Copy-Item .env.example .env
+```
+
+主な設定項目:
+
+- `CAPTURE_INTERVAL_SECONDS`
+  - 自動キャプチャ間隔（秒）
+- `AI_ENABLED`
+  - `true` で AI 判定を有効化
+- `AI_PROVIDER`
+  - `mock` / `mistral` / `openai`
+- `AI_CONFIDENCE_THRESHOLD`
+  - ルールベース判定から AI にフォールバックする閾値
+- `MISTRAL_API_KEY`
+  - Mistral 利用時に必要
+- `MISTRAL_VISION_MODEL`
+  - Mistral の画像系モデル名
+- `OPENAI_API_KEY`
+  - OpenAI 利用時に必要
+
+### 3. 起動する
+
+通常起動:
+
+```powershell
 python app.py
 ```
 
-この環境では `conda run` が不安定だったため、必要なら同梱の起動スクリプトも使えます。
+Conda `py313` 前提の起動:
 
 ```powershell
-cd work-journal
 .\run_py313.ps1
 ```
 
-`make` が使える環境であれば、以下でも起動できます。
+起動後は次を開きます。
 
-```powershell
-conda activate py313
-make run
+```text
+http://127.0.0.1:8000
 ```
 
-起動後は `http://127.0.0.1:8000` を開いてください。
+## 使い方
 
-## 記録開始方法
+### 基本フロー
 
-1. ダッシュボードを開く
-2. 記録間隔やAI利用設定を必要に応じて調整する
-3. `記録開始` を押す
+1. `/tasks` でタスクを登録する
+2. ダッシュボードまたはタスク一覧からタスクを開始する
+3. 必要に応じて記録設定で OCR / AI を切り替える
+4. 作業中は自動または手動でスクリーンショットを残す
+5. `/private-summary` や `/public-report` で1日の内容を確認する
 
-停止するときは `停止` を押します。試しに1件だけ追加したい場合は `1回だけ記録` が使えます。
+### 月間カレンダー
 
-## 保存先
+- ダッシュボードの月間カレンダーから日付ごとの作業量を確認できます
+- 日付クリックで、その日の詳細を別ウィンドウで開きます
 
-- スクリーンショット: `data/screenshots/YYYY-MM-DD/`
-- ログ: `data/logs/activity_log.jsonl`
-- サンプルログ: `data/logs/sample_activity_log.jsonl`
+### 成果物確認
+
+- `/artifacts` では、手動キャプチャだけをタスク単位で確認できます
+- 節目で手動キャプチャを残すと、進捗共有に使いやすくなります
 
 ## サンプルデータ
 
-初回起動時に最低限のサンプルデータを自動生成します。手動で作り直す場合:
+初回起動時、`data/logs/sample_activity_log.jsonl` が存在しなければサンプルデータを自動生成します。  
+手動生成したい場合は次でも実行できます。
 
 ```powershell
-conda activate py313
 python sample_data.py
 ```
 
-## AI連携
+## AI / OCR の挙動
 
-外部AI連携は任意機能です。既定は `mock` で、`mistral` は画像付きの Chat Completions API を使う実装を入れています。`openai` はまだ雛形です。
+### OCR
 
-### 利用できる provider 名
+- `enable_ocr` を有効にすると `pytesseract` を使って画像から文字を抽出します
+- OCR が使えない場合でも、アプリ自体はルールベース判定で動作します
 
-- `mock`
-- `mistral` (実装済み)
-- `openai` (雛形)
+### AI 判定
 
-### 環境変数
+- まずルールベース判定を実施
+- 信頼度が `AI_CONFIDENCE_THRESHOLD` 未満のときだけ AI を呼びます
+- 現在の実装は `mock` / `mistral` / `openai` に対応しています
 
-```powershell
-$env:AI_ENABLED="true"
-$env:AI_PROVIDER="mistral"
-$env:AI_CONFIDENCE_THRESHOLD="0.6"
-$env:MISTRAL_API_KEY="..."
-$env:MISTRAL_VISION_MODEL="mistral-small-latest"
-```
+## 保存ファイル
 
-`MISTRAL_VISION_MODEL` を変えれば、利用可能な他の vision 対応モデルにも差し替えできます。
+主な出力先:
 
-`.env` を使う場合は `.env.example` をコピーして `.env` を作ってください。`run_py313.ps1` から起動した場合も `app.py` で読み込み、既存の同名環境変数より `.env` の値を優先します。
+- `data/screenshots/`
+- `data/logs/activity_log.jsonl`
+- `data/logs/task_sessions.jsonl`
+- `data/logs/sample_activity_log.jsonl`
+- `data/tasks.json`
+- `data/active_task_session.json`
 
-将来の実プロバイダ用:
+## 制約と補足
 
-```powershell
-$env:OPENAI_API_KEY="..."
-```
+- ローカル PC 向けのモック / 検証アプリです
+- DB は使わず、ファイルベースで保存しています
+- OCR 精度は Tesseract の導入状況や画面内容に依存します
+- AI 判定を有効にした場合、外部 API の応答時間や料金の影響を受けます
+- スクリーンショットには機密情報が含まれる可能性があるため、保存先の扱いには注意が必要です
 
-AI呼び出しは、ルールベース判定の信頼度が低い場合のみ行う想定です。APIキー未設定、タイムアウト、レート制限、画像送信失敗などが起きても、アプリ全体は落ちずルールベース推定へフォールバックします。
+## 今後の改善候補
 
-## 制限事項
-
-- 現状はモックであり、推定精度は高くありません
-- 生スクリーンショットの保存にはプライバシー上の注意が必要です
-- 公開用日報は人が確認してから使う前提です
-- 監視用途ではなく、本人の振り返り用途を想定しています
-- OCRや外部AIは任意機能で、未設定時は簡易推定のみで動作します
-- 画像を外部AIへ送る場合、個人情報や機密情報の送信リスクに注意が必要です
-- Windows の Python / ネイティブ依存の組み合わせによっては OCR 側が不安定なことがあります。現状は OCR を子プロセス実行にしてあり、失敗時は OCR なしで継続します
-
-## 今後の拡張候補
-
-- OCR精度改善と日本語環境のセットアップ支援
-- OpenAI / Mistral / Gemini / Claude / ローカルVLM の実接続
-- マスキング処理の本実装
-- 公開用レポートの秘匿ルール強化
-- SQLite対応や検索機能追加
-- AI呼び出し頻度制御、リトライ、キャッシュ
-
-## 実装メモ
-
-- `analyzer.py` に見やすいルールベース判定定義を配置
-- `summarize_screenshot_with_ai(...)` を共通インターフェースとして定義
-- `mask_sensitive_content(...)` を将来拡張ポイントとして追加
-- スクリーンショット取得に失敗した場合でもダミー画像で継続し、落ちにくい実装にしてあります
+- 文字化けが残っているテンプレートの整理
+- SQLite などへの保存先拡張
+- フィルタや検索の強化
+- 公開レポートのテンプレート改善
+- AI 判定のプロンプト改善とマスキング強化
