@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from activity_context import ActivityContextCollector
 from analyzer import analyze_activity
 from storage import append_log, get_screenshot_path
 
@@ -77,6 +78,7 @@ class RecorderService:
         self.ai_provider = ai_provider
         self.ai_threshold = ai_threshold
         self.task_context_provider = task_context_provider
+        self.activity_context_collector = ActivityContextCollector()
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
@@ -132,6 +134,7 @@ class RecorderService:
         output_path = get_screenshot_path(ts)
         window_title = get_active_window_title()
         context = task_context if task_context is not None else self._get_task_context()
+        activity_context = self.activity_context_collector.collect(ts)
 
         try:
             capture_screenshot(output_path)
@@ -151,6 +154,7 @@ class RecorderService:
             "screenshot_path": str(output_path.relative_to(Path(__file__).resolve().parent)).replace("\\", "/"),
             "capture_kind": capture_kind,
             **context,
+            **activity_context,
             **analysis,
         }
         append_log(entry)

@@ -3,8 +3,8 @@
 <section class="hero-card">
   <div>
     <p class="eyebrow">Dashboard</p>
-    <h2>{% if active_session %}{{ active_session.task_title }} を記録中{% else %}今日の作業タスクを選択{% endif %}</h2>
-    <p class="muted">タスク定義は専用画面で管理し、ここでは今の作業をすぐ開始できるようにしています。</p>
+    <h2>{{ date_browser.selected_date_label }} の作業状況</h2>
+    <p class="muted">初期表示は今日のログです。日付を切り替えると過去の作業も追えます。</p>
   </div>
   <div class="status-pill {{ 'running' if recording else 'stopped' }}">
     {{ "Recording" if recording else "Stopped" }}
@@ -13,7 +13,7 @@
 
 <section class="grid three">
   <article class="card stat-card">
-    <p class="label">記録時間</p>
+    <p class="label">作業時間</p>
     <p class="metric">{{ summary.total_minutes }} min</p>
   </article>
   <article class="card stat-card">
@@ -21,8 +21,8 @@
     <p class="metric">{{ task_options|length }}</p>
   </article>
   <article class="card stat-card">
-    <p class="label">成果物候補</p>
-    <p class="metric">{{ summary.artifact_count }}</p>
+    <p class="label">手動キャプチャ</p>
+    <p class="metric">{{ summary.manual_capture_count }}</p>
   </article>
 </section>
 
@@ -30,10 +30,10 @@
   <article class="card">
     <div class="row-between">
       <div>
-        <h3>今の作業を選択</h3>
-        <p class="muted">大項目ごとに並んだ定義済みタスクから開始できます。</p>
+        <h3>タスク開始</h3>
+        <p class="muted">色付きで管理したいタスクをここから開始できます。</p>
       </div>
-      <a href="/tasks" class="button-link">タスク定義を開く</a>
+      <a href="/tasks" class="button-link">タスク編集</a>
     </div>
     <div class="stack-list grouped-stack">
       {% for group in task_groups %}
@@ -46,8 +46,11 @@
           {% for task in group.tasks %}
           <form method="post" action="/tasks/start" class="task-picker">
             <input type="hidden" name="task_id" value="{{ task.id }}">
-            <div>
-              <p class="item-title">{{ task.title }}</p>
+            <div class="task-text">
+              <p class="item-title">
+                <span class="task-dot" style="--task-color: {{ task.color }}"></span>
+                {{ task.title }}
+              </p>
               <p class="muted">{{ task.path_text }}</p>
             </div>
             <button type="submit" class="ghost">開始</button>
@@ -56,12 +59,12 @@
         </div>
       </section>
       {% else %}
-      <p class="muted">まだタスクがありません。Tasks 画面で定義してください。</p>
+      <p class="muted">まだタスクがありません。</p>
       {% endfor %}
     </div>
     {% if active_session %}
     <form method="post" action="/tasks/stop" class="inline-form">
-      <button type="submit" class="secondary">現在のタスクを終了</button>
+      <button type="submit" class="secondary">現在のタスクを停止</button>
     </form>
     {% endif %}
   </article>
@@ -74,11 +77,11 @@
       </label>
       <label class="checkbox-row">
         <input type="checkbox" name="enable_ocr" {% if settings.enable_ocr %}checked{% endif %}>
-        OCR を使う
+        OCR を有効にする
       </label>
       <label class="checkbox-row">
         <input type="checkbox" name="use_ai" {% if settings.use_ai %}checked{% endif %}>
-        判定が弱いとき AI を使う
+        AI 判定を使う
       </label>
       <label>AI Provider
         <select name="ai_provider">
@@ -87,55 +90,166 @@
           {% endfor %}
         </select>
       </label>
-      <label>AI 呼び出し閾値
+      <label>AI 信頼しきい値
         <input type="number" step="0.05" min="0" max="1" name="ai_threshold" value="{{ settings.ai_threshold }}">
       </label>
       <div class="button-row">
-        <button type="submit" class="primary">記録を開始</button>
+        <button type="submit" class="primary">記録開始</button>
+        <button type="submit" formaction="/recording/stop" class="secondary">記録停止</button>
+        <button type="submit" formaction="/recording/capture" class="ghost">1回だけ記録</button>
       </div>
     </form>
-    <div class="button-row">
-      <form method="post" action="/recording/stop"><button type="submit" class="secondary">記録を停止</button></form>
-      <form method="post" action="/recording/capture"><button type="submit" class="ghost">1回だけ記録</button></form>
-    </div>
   </article>
 </section>
 
 <section class="grid two">
-  <article class="card">
-    <h3>本日のタスク実績</h3>
-    <div class="stack-list">
-      {% for item in summary.task_totals %}
-      <div class="row-between">
-        <span>{{ item.task_name }}</span>
-        <strong>{{ item.minutes }} min</strong>
+  <article class="card calendar-card">
+    <div class="row-between">
+      <div>
+        <h3>月間カレンダー</h3>
+        <p class="muted">Google カレンダーの月表示に近い骨格で、日ごとの作業を一覧できます。</p>
       </div>
-      {% else %}
-      <p class="muted">まだタスクセッションはありません。</p>
-      {% endfor %}
     </div>
-    <div class="note-block">
-      <p>手動キャプチャ: {{ summary.manual_capture_count }}</p>
-      <p>現在時刻: {{ now_text }}</p>
+
+    <div class="calendar-toolbar">
+      <div class="button-row">
+        <a href="/?date={{ today_iso }}" class="button-link calendar-today">今日</a>
+        <div class="calendar-nav">
+          <a href="/?date={{ calendar_view.previous_month_iso }}" class="calendar-arrow" aria-label="前月">‹</a>
+          <a href="/?date={{ calendar_view.next_month_iso }}" class="calendar-arrow" aria-label="次月">›</a>
+        </div>
+      </div>
+      <h3 class="calendar-title">{{ calendar_view.month_label }}</h3>
+    </div>
+
+    <div class="calendar-shell googleish-calendar">
+      <div class="calendar-weekdays">
+        {% for weekday in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] %}
+        <span>{{ weekday }}</span>
+        {% endfor %}
+      </div>
+      <div class="calendar-grid">
+        {% for week in calendar_view.weeks %}
+          {% for day in week %}
+          <a href="/?date={{ day.date_iso }}" class="calendar-day googleish-day {{ 'muted-day' if not day.is_current_month else '' }} {{ 'selected' if day.is_selected else '' }}">
+            <div class="calendar-day-head">
+              <span class="calendar-day-number {{ 'today-mark' if day.is_today else '' }}">{{ day.day_number }}</span>
+              {% if day.total_minutes %}
+              <span class="calendar-minutes">{{ day.total_minutes }}m</span>
+              {% endif %}
+            </div>
+            <div class="calendar-event-list">
+              {% for event in day.events %}
+              <div class="calendar-event" title="{{ event.task_name }}: {{ event.minutes }} min">
+                <span class="calendar-event-dot" style="background: {{ event.task_color }}"></span>
+                <span class="calendar-event-name">{{ event.task_name }}</span>
+              </div>
+              {% else %}
+              <div class="calendar-empty"></div>
+              {% endfor %}
+            </div>
+          </a>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="calendar-footer grid two compact-grid">
+      <div class="calendar-legend">
+        <p class="muted">当月合計 {{ calendar_view.month_total_minutes }} min</p>
+        <div class="legend-list">
+          {% for item in calendar_view.legend %}
+          <div class="legend-item">
+            <span class="task-dot" style="--task-color: {{ item.task_color }}"></span>
+            <span>{{ item.task_name }}</span>
+            <strong>{{ item.minutes }} min</strong>
+          </div>
+          {% else %}
+          <p class="muted">今月のセッションはまだありません。</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="selected-day-panel">
+        <p class="eyebrow">Selected Day</p>
+        <h4>{{ date_browser.selected_date_label }}</h4>
+        <p class="muted">合計 {{ day_schedule.day_total_minutes }} min</p>
+        <div class="stack-list">
+          {% for session in calendar_view.selected_day_sessions %}
+          <div class="selected-session-row">
+            <span class="task-dot" style="--task-color: {{ session.task_color }}"></span>
+            <div class="selected-session-text">
+              <strong>{{ session.task_name }}</strong>
+              <p class="muted">{{ session.started_at[11:16] }} - {{ session.ended_at[11:16] if session.ended_at else "進行中" }} / {{ session.duration_minutes }} min</p>
+            </div>
+          </div>
+          {% else %}
+          <p class="muted">この日のセッションはありません。</p>
+          {% endfor %}
+        </div>
+        <div class="day-schedule">
+          {% for row in day_schedule.rows %}
+          <div class="day-schedule-row">
+            <div class="day-schedule-hour">{{ row.hour_label }}</div>
+            <div class="day-schedule-events">
+              {% for item in row.entries %}
+              <div class="day-schedule-item">
+                <span class="task-dot" style="--task-color: {{ item.task_color }}"></span>
+                <div class="selected-session-text">
+                  <strong>{{ item.task_name }}</strong>
+                  <p class="muted">{{ item.start_label }} - {{ item.end_label }} / {{ item.minutes }} min</p>
+                </div>
+              </div>
+              {% else %}
+              <div class="day-schedule-empty">-</div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </article>
 
   <article class="card">
-    <h3>直近の記録</h3>
+    <h3>{{ date_browser.selected_date_label }} のタスク内訳</h3>
+    <div class="stack-list">
+      {% for item in summary.task_totals %}
+      <div class="row-between task-summary-row">
+        <span class="task-inline">
+          <span class="task-dot" style="--task-color: {{ item.task_color or '#94a3b8' }}"></span>
+          {{ item.task_name }}
+        </span>
+        <strong>{{ item.minutes }} min</strong>
+      </div>
+      {% else %}
+      <p class="muted">この日のタスク実績はまだありません。</p>
+      {% endfor %}
+    </div>
+    <div class="note-block">
+      <p>最新表示時刻: {{ now_text }}</p>
+      <p>ログ件数: {{ entries|length }}</p>
+    </div>
+    <h3>最新ログ</h3>
     <div class="stack-list">
       {% for item in entries[-5:]|reverse %}
       <div class="timeline-row compact">
         <div>
-          <p class="item-title">{{ item.activity_label }}</p>
-          <p class="muted">{{ item.task_path_text or "タスク未選択" }}</p>
+          <p class="item-title">
+            {% if item.task_color %}
+            <span class="task-dot" style="--task-color: {{ item.task_color }}"></span>
+            {% endif %}
+            {{ item.task_title or item.activity_label }}
+          </p>
+          <p class="muted">{{ item.activity_summary or item.activity_label }}</p>
         </div>
         <div class="meta-right">
-          <span>{{ item.timestamp[11:19] }}</span>
+          <span>{{ item.timestamp[11:16] }}</span>
           <span>{{ item.capture_kind }}</span>
         </div>
       </div>
       {% else %}
-      <p class="muted">まだログがありません。</p>
+      <p class="muted">この日のログはありません。</p>
       {% endfor %}
     </div>
   </article>

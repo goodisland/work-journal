@@ -4,6 +4,7 @@ import json
 import uuid
 from collections import defaultdict
 from datetime import date, datetime
+from pathlib import Path
 
 from storage import (
     ACTIVE_TASK_SESSION_PATH,
@@ -15,6 +16,20 @@ from storage import (
 )
 
 
+DEFAULT_TASK_COLORS = [
+    "#0f766e",
+    "#d97706",
+    "#2563eb",
+    "#b45309",
+    "#7c3aed",
+    "#be123c",
+    "#0891b2",
+    "#4d7c0f",
+    "#c2410c",
+    "#4338ca",
+]
+
+
 def _now_iso() -> str:
     return datetime.now().replace(microsecond=0).isoformat()
 
@@ -23,13 +38,31 @@ def _clean_levels(levels: list[str]) -> list[str]:
     return [level.strip() for level in levels if level and level.strip()]
 
 
-def _task_payload(task_id: str, levels: list[str], note: str, created_at: str) -> dict:
+def _default_color(seed: str) -> str:
+    base = seed or "task"
+    return DEFAULT_TASK_COLORS[sum(ord(char) for char in base) % len(DEFAULT_TASK_COLORS)]
+
+
+def _normalize_color(task_id: str, color: str | None) -> str:
+    if isinstance(color, str):
+        candidate = color.strip()
+        if len(candidate) == 7 and candidate.startswith("#"):
+            try:
+                int(candidate[1:], 16)
+                return candidate.lower()
+            except ValueError:
+                pass
+    return _default_color(task_id)
+
+
+def _task_payload(task_id: str, levels: list[str], note: str, created_at: str, color: str | None = None) -> dict:
     return {
         "id": task_id,
         "levels": levels,
         "title": levels[-1],
         "path_text": " > ".join(levels),
         "note": note.strip(),
+        "color": _normalize_color(task_id, color),
         "created_at": created_at,
         "updated_at": _now_iso(),
         "archived": False,
@@ -45,35 +78,49 @@ class TaskService:
         write_json(TASKS_PATH, tasks)
 
     def list_tasks(self) -> list[dict]:
-        tasks = [task for task in self._read_tasks() if isinstance(task, dict) and not task.get("archived")]
+        tasks: list[dict] = []
+        for task in self._read_tasks():
+            if not isinstance(task, dict) or task.get("archived"):
+                continue
+            item = dict(task)
+            item["color"] = _normalize_color(item.get("id", ""), item.get("color"))
+            tasks.append(item)
         return sorted(tasks, key=lambda item: ((item.get("levels") or [""])[0], item.get("levels", []), item.get("created_at", "")))
 
-    def create_task(self, levels: list[str], note: str = "") -> dict:
+    def create_task(self, levels: list[str], note: str = "", color: str | None = None) -> dict:
         cleaned_levels = _clean_levels(levels)
         if not cleaned_levels:
-            raise ValueError("タスク名を最低1つ入力してください。")
-        task = _task_payload(uuid.uuid4().hex, cleaned_levels, note, _now_iso())
+            raise ValueError("At least one task level is required.")
+
+        task_id = uuid.uuid4().hex
+        task = _task_payload(task_id, cleaned_levels, note, _now_iso(), color=color)
         tasks = self._read_tasks()
         tasks.append(task)
         self._write_tasks(tasks)
         return task
 
-    def update_task(self, task_id: str, levels: list[str], note: str = "") -> dict:
+    def update_task(self, task_id: str, levels: list[str], note: str = "", color: str | None = None) -> dict:
         cleaned_levels = _clean_levels(levels)
         if not cleaned_levels:
-            raise ValueError("タスク名を最低1つ入力してください。")
+            raise ValueError("At least one task level is required.")
 
         tasks = self._read_tasks()
         updated: dict | None = None
         for index, task in enumerate(tasks):
             if task.get("id") != task_id:
                 continue
-            updated = _task_payload(task_id, cleaned_levels, note, task.get("created_at", _now_iso()))
+            updated = _task_payload(
+                task_id,
+                cleaned_levels,
+                note,
+                task.get("created_at", _now_iso()),
+                color=color if color is not None else task.get("color"),
+            )
             tasks[index] = updated
             break
 
         if not updated:
-            raise ValueError("編集対象のタスクが見つかりません。")
+            raise ValueError("Task not found.")
 
         self._write_tasks(tasks)
         self._sync_active_session(updated)
@@ -92,7 +139,7 @@ class TaskService:
     def start_task(self, task_id: str) -> dict:
         task = self.get_task(task_id)
         if not task:
-            raise ValueError("選択されたタスクが見つかりません。")
+            raise ValueError("Selected task was not found.")
 
         active = self.get_active_session()
         if active and active.get("task_id") == task_id:
@@ -106,6 +153,7 @@ class TaskService:
             "task_title": task["title"],
             "task_path": task["levels"],
             "task_path_text": task["path_text"],
+            "task_color": task.get("color"),
             "started_at": _now_iso(),
             "ended_at": "",
             "screenshots": [],
@@ -158,6 +206,7 @@ class TaskService:
             "task_path": active.get("task_path", []),
             "task_path_text": active.get("task_path_text", ""),
             "task_started_at": active.get("started_at", ""),
+            "task_color": active.get("task_color", ""),
         }
 
     def list_sessions_for_date(self, target_date: date | None = None) -> list[dict]:
@@ -180,7 +229,8 @@ class TaskService:
                 "title": task["title"],
                 "path_text": task["path_text"],
                 "levels": task["levels"],
-                "major": (task.get("levels") or ["未分類"])[0],
+                "color": task.get("color"),
+                "major": (task.get("levels") or ["Uncategorized"])[0],
             }
             for task in self.list_tasks()
         ]
@@ -189,10 +239,7 @@ class TaskService:
         grouped: dict[str, list[dict]] = defaultdict(list)
         for task in self.build_task_options():
             grouped[task["major"]].append(task)
-        return [
-            {"major": major, "tasks": grouped[major]}
-            for major in sorted(grouped.keys())
-        ]
+        return [{"major": major, "tasks": grouped[major]} for major in sorted(grouped.keys())]
 
     def get_level_options(self) -> dict[str, list[str]]:
         options: dict[str, set[str]] = {f"h{index}": set() for index in range(1, 6)}
@@ -209,6 +256,7 @@ class TaskService:
         active["task_title"] = task["title"]
         active["task_path"] = task["levels"]
         active["task_path_text"] = task["path_text"]
+        active["task_color"] = task.get("color")
         active["note"] = task.get("note", "")
         write_json(ACTIVE_TASK_SESSION_PATH, active)
 
@@ -217,7 +265,7 @@ def read_logs_from_jsonl() -> list[dict]:
     return read_jsonl(TASK_SESSION_LOG_PATH)
 
 
-def read_jsonl(path) -> list[dict]:
+def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
     items: list[dict] = []

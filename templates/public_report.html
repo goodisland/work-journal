@@ -3,39 +3,87 @@
 <section class="hero-card">
   <div>
     <p class="eyebrow">Public Report</p>
-    <h2>共有用の報告</h2>
-    <p class="muted">タスク名、進捗、成果物候補をそのまま転記しやすい形にしています。</p>
+    <h2>{{ date_browser.selected_date_label }} report</h2>
+    <p class="muted">A concise external-facing report with a few concrete development signals.</p>
   </div>
 </section>
 
 <section class="grid two">
   <article class="card">
-    <h3>主要タスク</h3>
+    <h3>Focus</h3>
     <div class="stack-list">
       {% for item in report.report_items %}
       <p>{{ item }}</p>
       {% else %}
-      <p class="muted">まだ報告項目がありません。</p>
+      <p class="muted">No tracked tasks for this day.</p>
       {% endfor %}
     </div>
+    <h3>Progress</h3>
+    <p>{{ report.progress }}</p>
+    <h3>Next</h3>
+    <p>{{ report.tomorrow }}</p>
+    <h3>Concerns</h3>
+    <p>{{ report.concerns }}</p>
   </article>
+
   <article class="card">
-    <h3>成果物候補</h3>
-    <p>手動キャプチャ: {{ report.manual_capture_count }}</p>
-    <p>添付候補数: {{ report.artifact_count }}</p>
+    <h3>Artifacts and signals</h3>
+    <p>Manual captures: {{ report.manual_capture_count }}</p>
+    <p>Artifact count: {{ report.artifact_count }}</p>
+    <p>Commands observed: {{ report.command_count }}</p>
+    <p>Files edited: {{ report.edited_file_count }}</p>
+    <p>Added lines: {{ report.diff_stats.added_lines }}</p>
+    <p>Removed lines: {{ report.diff_stats.removed_lines }}</p>
     <div class="artifact-grid">
       {% for path in report.artifact_paths %}
       <img src="/{{ path }}" alt="artifact preview" class="artifact-thumb">
       {% else %}
-      <p class="muted">まだ添付候補はありません。</p>
+      <p class="muted">No manual artifacts were captured.</p>
       {% endfor %}
     </div>
   </article>
 </section>
 
+<section class="grid two">
+  <article class="card">
+    <h3>Edit highlights</h3>
+    <div class="stack-list">
+      {% for item in report.edit_summaries %}
+      <p>{{ item }}</p>
+      {% else %}
+      <p class="muted">No edit highlights were generated.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="card">
+    <h3>Commands and files</h3>
+    <div class="stack-list">
+      {% for item in report.top_commands %}
+      <div class="row-between">
+        <span>{{ item.command }}</span>
+        <strong>{{ item.count }}</strong>
+      </div>
+      {% endfor %}
+      {% for item in report.top_files %}
+      <div class="row-between">
+        <span>{{ item.path }}</span>
+        <strong>{{ item.count }}</strong>
+      </div>
+      {% endfor %}
+      {% for path in report.top_directories %}
+      <p class="muted">{{ path }}</p>
+      {% endfor %}
+      {% if not report.top_commands and not report.top_files %}
+      <p class="muted">No command or file activity was summarized.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
 <section class="card">
-  <h3>報告文</h3>
+  <h3>Report text</h3>
   <textarea id="reportText" readonly>{{ report.report_text }}</textarea>
-  <button class="primary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('reportText').value)">コピー</button>
+  <button class="primary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('reportText').value)">Copy</button>
 </section>
 {% endblock %}

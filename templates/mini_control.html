@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mini Control</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  </head>
+  <body class="mini-body">
+    <main class="mini-shell buttons-only">
+      <section class="mini-card buttons-only-card">
+        {% if active_session %}
+        <div class="mini-lamp-row" aria-label="recording status">
+          <span class="status-lamp {{ 'is-recording' if recording else 'is-idle' }}"></span>
+        </div>
+        <div class="mini-actions">
+          <form method="post" action="/tasks/capture">
+            <button type="submit" class="primary mini-button">成果物を保存</button>
+          </form>
+
+          {% if recording %}
+          <form method="post" action="/recording/pause">
+            <input type="hidden" name="redirect_to" value="/mini-control">
+            <button type="submit" class="ghost mini-button">記録を一時停止</button>
+          </form>
+          {% else %}
+          <form method="post" action="/recording/start">
+            <input type="hidden" name="interval_seconds" value="{{ recorder_settings.interval_seconds }}">
+            <input type="hidden" name="enable_ocr" value="{{ 'true' if recorder_settings.enable_ocr else 'false' }}">
+            <input type="hidden" name="use_ai" value="{{ 'true' if recorder_settings.use_ai else 'false' }}">
+            <input type="hidden" name="ai_provider" value="{{ recorder_settings.ai_provider }}">
+            <input type="hidden" name="ai_threshold" value="{{ recorder_settings.ai_threshold }}">
+            <input type="hidden" name="redirect_to" value="/mini-control">
+            <button type="submit" class="ghost mini-button">記録を再開</button>
+          </form>
+          {% endif %}
+
+          <form method="post" action="/recording/stop">
+            <input type="hidden" name="redirect_to" value="/mini-control">
+            <button type="submit" class="secondary mini-button">記録終了</button>
+          </form>
+        </div>
+        {% else %}
+        <div class="mini-actions">
+          <a href="/" class="button-link mini-button">ダッシュボードへ戻る</a>
+        </div>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

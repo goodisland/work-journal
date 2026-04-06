@@ -1,18 +1,21 @@
 {% extends "layout.html" %}
 {% block content %}
 <section class="focus-shell">
-  {% if active_session %}
   <article class="focus-panel">
+    {% if active_session %}
     <p class="eyebrow">Focus Mode</p>
-    <h2>{{ active_session.task_title }}</h2>
+    <h2>
+      <span class="task-dot" style="--task-color: {{ active_session.task_color or '#0f766e' }}"></span>
+      {{ active_session.task_title }}
+    </h2>
     <p class="focus-path">{{ active_session.task_path_text }}</p>
     <div class="focus-meta">
       <div>
         <span class="label">開始</span>
-        <strong>{{ active_session.started_at[11:19] }}</strong>
+        <strong>{{ active_session.started_at[11:16] }}</strong>
       </div>
       <div>
-        <span class="label">成果物</span>
+        <span class="label">キャプチャ</span>
         <strong>{{ active_session.screenshots|length }}</strong>
       </div>
       <div>
@@ -22,21 +25,20 @@
     </div>
     <div class="button-row">
       <form method="post" action="/tasks/capture">
-        <button type="submit" class="primary">この画面から成果物を保存</button>
+        <button type="submit" class="primary">今の画面を成果物として保存</button>
       </form>
+      <button type="button" class="ghost" onclick="window.open('/mini-control', 'mini-control', 'width=260,height=220,resizable=yes,scrollbars=no')">ミニ操作画面を開く</button>
       <form method="post" action="/tasks/stop">
-        <button type="submit" class="secondary">このタスクを終了</button>
+        <button type="submit" class="secondary">このタスクを停止</button>
       </form>
     </div>
-    <p class="muted">このページを別ウィンドウで前面に置くと、いま何を記録しているかを常に確認できます。</p>
-  </article>
-  {% else %}
-  <article class="focus-panel">
+    <p class="muted">小さい操作画面を開くと、作業中でも一時停止・記録終了・成果物保存をすぐ行えます。</p>
+    {% else %}
     <p class="eyebrow">Focus Mode</p>
-    <h2>タスク未開始</h2>
-    <p class="muted">ダッシュボードでタスクを選んで開始すると、この画面が記録中の前面パネルとして使えます。</p>
+    <h2>進行中のタスクはありません</h2>
+    <p class="muted">ダッシュボードからタスクを開始すると、ここに現在の作業が表示されます。</p>
     <a href="/" class="button-link">ダッシュボードへ戻る</a>
+    {% endif %}
   </article>
-  {% endif %}
 </section>
 {% endblock %}

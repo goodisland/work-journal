@@ -3,8 +3,8 @@
 <section class="hero-card">
   <div>
     <p class="eyebrow">Timeline</p>
-    <h2>スクリーンショットの履歴</h2>
-    <p class="muted">自動取得と手動取得の両方を確認できます。手動取得は成果物候補として扱えます。</p>
+    <h2>{{ date_browser.selected_date_label }} timeline</h2>
+    <p class="muted">Each capture now carries shell commands, touched files, and edit summaries when they can be observed.</p>
   </div>
   <div class="status-pill {{ 'running' if recording else 'stopped' }}">
     {{ "Recording" if recording else "Stopped" }}
@@ -17,22 +17,47 @@
     <img src="/{{ item.screenshot_path }}" alt="screenshot thumbnail" class="thumb">
     <div class="timeline-content">
       <div class="row-between">
-        <h3>{{ item.task_title or item.activity_label }}</h3>
-        <span>{{ item.timestamp[11:19] }}</span>
+        <h3>
+          {% if item.task_color %}
+          <span class="task-dot" style="--task-color: {{ item.task_color }}"></span>
+          {% endif %}
+          {{ item.task_title or item.activity_label }}
+        </h3>
+        <span>{{ item.timestamp[11:16] }}</span>
       </div>
-      <p>{{ item.activity_summary }}</p>
-      <p class="muted">{{ item.task_path_text or "タスク未選択" }}</p>
-      <p class="muted">{{ item.window_title or "ウィンドウタイトルなし" }}</p>
+      <p>{{ item.activity_summary or item.activity_label }}</p>
+      <p class="muted">{{ item.task_path_text or "No active task" }}</p>
+      <p class="muted">{{ item.window_title or "Unknown window" }}</p>
       <div class="badge-row">
         <span class="badge">{{ item.capture_kind }}</span>
         <span class="badge">{{ item.inference_source }}</span>
-        <span class="badge">confidence {{ "%.2f"|format(item.confidence) }}</span>
+        <span class="badge">confidence {{ "%.2f"|format(item.confidence or 0) }}</span>
+        {% if item.command_count %}
+        <span class="badge">{{ item.command_count }} commands</span>
+        {% endif %}
+        {% if item.edited_file_count %}
+        <span class="badge">{{ item.edited_file_count }} files</span>
+        {% endif %}
       </div>
+      {% if item.executed_commands %}
+      <div class="stack-list">
+        {% for command in item.executed_commands[:3] %}
+        <p class="muted"><strong>{{ command.cwd }}</strong> {{ command.command }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if item.edit_summaries %}
+      <div class="stack-list">
+        {% for summary in item.edit_summaries[:3] %}
+        <p class="muted">{{ summary }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </article>
   {% else %}
   <article class="card">
-    <p class="muted">ログがまだありません。</p>
+    <p class="muted">No timeline entries were recorded for this day.</p>
   </article>
   {% endfor %}
 </section>

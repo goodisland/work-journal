@@ -12,9 +12,11 @@ SCREENSHOTS_DIR = DATA_DIR / "screenshots"
 LOGS_DIR = DATA_DIR / "logs"
 ACTIVITY_LOG_PATH = LOGS_DIR / "activity_log.jsonl"
 SAMPLE_LOG_PATH = LOGS_DIR / "sample_activity_log.jsonl"
+COMMAND_LOG_PATH = LOGS_DIR / "command_log.jsonl"
 TASKS_PATH = DATA_DIR / "tasks.json"
 ACTIVE_TASK_SESSION_PATH = DATA_DIR / "active_task_session.json"
 TASK_SESSION_LOG_PATH = LOGS_DIR / "task_sessions.jsonl"
+ACTIVITY_TRACKER_STATE_PATH = DATA_DIR / "activity_tracker_state.json"
 
 
 def ensure_directories() -> None:

@@ -3,8 +3,8 @@
 <section class="hero-card">
   <div>
     <p class="eyebrow">Artifacts</p>
-    <h2>成果物一覧</h2>
-    <p class="muted">手動保存した成果物キャプチャを、タスクごとにまとめて確認できます。</p>
+    <h2>{{ date_browser.selected_date_label }} の成果物</h2>
+    <p class="muted">手動キャプチャをタスクごとに確認できます。</p>
   </div>
   <div class="status-pill running">
     {{ summary.artifact_count }} captures
@@ -13,7 +13,7 @@
 
 <section class="grid three">
   <article class="card stat-card">
-    <p class="label">成果物候補</p>
+    <p class="label">成果物数</p>
     <p class="metric">{{ summary.artifact_count }}</p>
   </article>
   <article class="card stat-card">
@@ -21,7 +21,7 @@
     <p class="metric">{{ summary.manual_capture_count }}</p>
   </article>
   <article class="card stat-card">
-    <p class="label">セッション数</p>
+    <p class="label">対象セッション</p>
     <p class="metric">{{ artifact_groups|length }}</p>
   </article>
 </section>
@@ -31,8 +31,11 @@
   <article class="card">
     <div class="row-between">
       <div>
-        <h3>{{ group.task_path_text }}</h3>
-        <p class="muted">{{ group.started_at[11:19] if group.started_at else "-" }} 開始</p>
+        <h3>
+          <span class="task-dot" style="--task-color: {{ group.task_color or '#94a3b8' }}"></span>
+          {{ group.task_path_text }}
+        </h3>
+        <p class="muted">{{ group.started_at[11:16] if group.started_at else "-" }} 開始</p>
       </div>
       <span class="badge">{{ group.screenshots|length }} captures</span>
     </div>
@@ -40,14 +43,14 @@
       {% for shot in group.screenshots %}
       <figure class="artifact-card">
         <img src="/{{ shot.screenshot_path }}" alt="artifact preview" class="artifact-thumb">
-        <figcaption class="muted">{{ shot.captured_at[11:19] }}</figcaption>
+        <figcaption class="muted">{{ shot.captured_at[11:16] }}</figcaption>
       </figure>
       {% endfor %}
     </div>
   </article>
   {% else %}
   <article class="card">
-    <p class="muted">まだ成果物キャプチャはありません。作業中画面から「成果物を保存」を押すとここに並びます。</p>
+    <p class="muted">この日の成果物はありません。</p>
   </article>
   {% endfor %}
 </section>
