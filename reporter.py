@@ -19,7 +19,7 @@ def _duration_minutes(entries: list[dict], default_seconds: int = 5) -> tuple[di
         else:
             seconds = default_seconds
         minutes = seconds / 60.0
-        label = entry.get("activity_label", "その他作業")
+        label = entry.get("activity_label", "未分類")
         totals[label] += minutes
         item = dict(entry)
         item["duration_minutes"] = round(minutes, 2)
@@ -27,41 +27,98 @@ def _duration_minutes(entries: list[dict], default_seconds: int = 5) -> tuple[di
     return dict(totals), enriched
 
 
-def build_private_summary(entries: list[dict]) -> dict:
+def _session_task_totals(sessions: list[dict]) -> list[dict]:
+    totals = defaultdict(float)
+    for session in sessions:
+        name = session.get("task_path_text") or session.get("task_title") or "未設定タスク"
+        started_at = session.get("started_at", "")
+        ended_at = session.get("ended_at", "")
+        if started_at and ended_at:
+            minutes = max(0.0, (_parse_timestamp(ended_at) - _parse_timestamp(started_at)).total_seconds() / 60.0)
+        else:
+            minutes = session.get("duration_minutes", 0.0)
+        totals[name] += minutes
+    return [
+        {"task_name": name, "minutes": round(minutes, 1)}
+        for name, minutes in sorted(totals.items(), key=lambda pair: pair[1], reverse=True)
+    ]
+
+
+def _manual_artifact_entries(entries: list[dict]) -> list[dict]:
+    return [
+        entry for entry in entries
+        if entry.get("capture_kind") == "manual" and entry.get("screenshot_path")
+    ]
+
+
+def build_artifact_groups(entries: list[dict]) -> list[dict]:
+    grouped: dict[tuple[str, str], dict] = {}
+    for entry in _manual_artifact_entries(entries):
+        key = (
+            entry.get("task_id", ""),
+            entry.get("task_started_at", "") or entry.get("task_path_text", ""),
+        )
+        if key not in grouped:
+            grouped[key] = {
+                "task_id": entry.get("task_id", ""),
+                "task_title": entry.get("task_title", "") or entry.get("activity_label", "未分類"),
+                "task_path_text": entry.get("task_path_text", "") or entry.get("task_title", "未設定タスク"),
+                "started_at": entry.get("task_started_at", "") or entry.get("timestamp", ""),
+                "screenshots": [],
+            }
+        grouped[key]["screenshots"].append(
+            {
+                "captured_at": entry["timestamp"],
+                "screenshot_path": entry["screenshot_path"],
+                "note": entry.get("activity_summary", ""),
+                "window_title": entry.get("window_title", ""),
+            }
+        )
+
+    groups = list(grouped.values())
+    for group in groups:
+        group["screenshots"].sort(key=lambda item: item.get("captured_at", ""))
+    groups.sort(key=lambda item: item.get("started_at", ""), reverse=True)
+    return groups
+
+
+def build_private_summary(entries: list[dict], sessions: list[dict] | None = None) -> dict:
+    sessions = sessions or []
     totals, timeline = _duration_minutes(entries)
     total_minutes = round(sum(totals.values()), 2)
     top_labels = sorted(totals.items(), key=lambda pair: pair[1], reverse=True)[:3]
 
     transitions = 0
     transition_hours = Counter()
-    interruption_like = 0
     previous_label = None
     for entry in entries:
         label = entry.get("activity_label", "")
         if previous_label and previous_label != label:
             transitions += 1
             transition_hours[_parse_timestamp(entry["timestamp"]).strftime("%H:00")] += 1
-            if label in {"メール対応", "チャット対応"} or previous_label in {"メール対応", "チャット対応"}:
-                interruption_like += 1
         previous_label = label
 
+    task_totals = _session_task_totals(sessions)
+    artifact_entries = _manual_artifact_entries(entries)
+    artifact_count = len(artifact_entries)
+    manual_capture_count = artifact_count
+
     suggestions: list[str] = []
-    if interruption_like >= 3:
-        suggestions.append("メールやチャットの割り込みが多い可能性があります。通知確認の時間帯をまとめると集中しやすいかもしれません。")
-    if totals.get("ドキュメント確認", 0) + totals.get("コード確認", 0) >= 20:
-        suggestions.append("確認系の時間が長めです。手順や参照先をテンプレ化すると次回の調査が短くなるかもしれません。")
+    if not sessions:
+        suggestions.append("タスクを開始すると、開始時刻・終了時刻・成果物スクリーンショットをまとめて追跡できます。")
     if transitions >= 6:
-        suggestions.append("作業切り替えが多めです。まとまった集中時間を確保できると進みやすい可能性があります。")
+        suggestions.append("作業切り替えが多めです。大項目単位でまとまった時間を確保すると記録が見やすくなります。")
+    if manual_capture_count == 0 and sessions:
+        suggestions.append("成果物を残したい場面で手動スクリーンショットを押すと、報告に添付しやすくなります。")
     if not suggestions:
-        suggestions = [
-            "大きな偏りは見られませんでした。主要作業を先に固める進め方が続けやすそうです。",
-            "公開用日報は抽象度を上げつつ、自分用ログでは詳細を残す運用が相性よさそうです。",
-            "低信頼な分類が目立つ場合は、OCRやAI補完を限定的に有効化すると振り返りがしやすくなります。",
-        ]
+        suggestions.append("タスク定義と実作業ログがそろっていて、振り返りに使いやすい状態です。")
 
     return {
         "total_minutes": total_minutes,
-        "totals": [{"activity_label": label, "minutes": round(minutes, 1)} for label, minutes in sorted(totals.items(), key=lambda pair: pair[1], reverse=True)],
+        "totals": [
+            {"activity_label": label, "minutes": round(minutes, 1)}
+            for label, minutes in sorted(totals.items(), key=lambda pair: pair[1], reverse=True)
+        ],
         "timeline": timeline,
         "top_labels": [{"activity_label": label, "minutes": round(minutes, 1)} for label, minutes in top_labels],
         "long_running": [
@@ -72,58 +129,58 @@ def build_private_summary(entries: list[dict]) -> dict:
         "busy_hours": [{"hour": hour, "count": count} for hour, count in transition_hours.most_common(3)],
         "transition_count": transitions,
         "suggestions": suggestions[:3],
+        "task_totals": task_totals[:5],
+        "artifact_count": artifact_count,
+        "manual_capture_count": manual_capture_count,
     }
 
 
-PUBLIC_LABEL_MAP = {
-    "実装・コード編集": "実装・コード編集を実施",
-    "コード確認": "コード確認やレビュー対応を実施",
-    "ドキュメント確認": "仕様確認とドキュメント参照を実施",
-    "メール対応": "メールで関係者との調整を実施",
-    "チャット対応": "チャットで関係者との調整を実施",
-    "CLI作業": "開発用のCLI作業を実施",
-    "会議・打ち合わせ": "打ち合わせや会議を実施",
-    "その他作業": "周辺作業を実施",
-}
+def build_public_report(entries: list[dict], sessions: list[dict] | None = None) -> dict:
+    sessions = sessions or []
+    summary = build_private_summary(entries, sessions=sessions)
+    task_names = [item["task_name"] for item in summary["task_totals"][:3]]
+    if not task_names:
+        task_names = ["本日の明示的なタスク着手はありませんでした。"]
 
+    progress = "開始時刻と終了時刻を含むセッション単位で、本日の作業を記録しました。"
+    if summary["task_totals"]:
+        progress = f"主要タスクは {summary['task_totals'][0]['task_name']} を中心に進行しました。"
 
-def build_public_report(entries: list[dict]) -> dict:
-    summary = build_private_summary(entries)
-    unique_items: list[str] = []
-    for item in summary["top_labels"]:
-        text = PUBLIC_LABEL_MAP.get(item["activity_label"], "周辺作業を実施")
-        if text not in unique_items:
-            unique_items.append(text)
-    if not unique_items:
-        unique_items.append("作業ログの収集と整理を実施")
-
-    progress = "主要な作業カテゴリを継続しつつ、記録ログの蓄積と振り返り材料の整理を進めました。"
-    tomorrow = "継続中の主要タスクを進めつつ、必要に応じて確認系作業を整理する予定です。"
-    concerns = "現時点では特記事項はありません。"
+    tomorrow = "同じ階層タスクを継続する場合は、そのまま再開して作業の連続性を残せます。"
+    concerns = "大きな阻害要因は記録されていません。"
     if summary["transition_count"] >= 6:
-        concerns = "割り込みや作業切り替えが多めだったため、集中時間の確保が課題です。"
+        concerns = "短時間での切り替えが多く、集中時間が分散している可能性があります。"
 
-    report_lines = ["今日の実施内容:"]
-    for item in unique_items[:3]:
+    artifact_paths = [entry["screenshot_path"] for entry in _manual_artifact_entries(entries)]
+
+    report_lines = ["本日の報告:"]
+    for item in task_names:
         report_lines.append(f"- {item}")
     report_lines.extend(
         [
             "",
-            "進捗:",
+            "進捗",
             f"- {progress}",
             "",
-            "明日の予定:",
+            "明日の予定",
             f"- {tomorrow}",
             "",
-            "課題/相談:",
+            "懸念事項",
             f"- {concerns}",
+            "",
+            "成果物",
+            f"- 手動キャプチャ数: {summary['manual_capture_count']}",
+            f"- 添付候補数: {summary['artifact_count']}",
         ]
     )
 
     return {
-        "report_items": unique_items[:3],
+        "report_items": task_names,
         "progress": progress,
         "tomorrow": tomorrow,
         "concerns": concerns,
+        "artifact_count": summary["artifact_count"],
+        "manual_capture_count": summary["manual_capture_count"],
+        "artifact_paths": artifact_paths,
         "report_text": "\n".join(report_lines),
     }

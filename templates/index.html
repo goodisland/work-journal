@@ -3,26 +3,69 @@
 <section class="hero-card">
   <div>
     <p class="eyebrow">Dashboard</p>
-    <h2>{{ "記録中" if recording else "停止中" }}</h2>
-    <p class="muted">今日のログを集約して、振り返りと共有用の下書きをローカルで確認できます。</p>
+    <h2>{% if active_session %}{{ active_session.task_title }} を記録中{% else %}今日の作業タスクを選択{% endif %}</h2>
+    <p class="muted">タスク定義は専用画面で管理し、ここでは今の作業をすぐ開始できるようにしています。</p>
   </div>
   <div class="status-pill {{ 'running' if recording else 'stopped' }}">
     {{ "Recording" if recording else "Stopped" }}
   </div>
 </section>
 
-<section class="grid two">
+<section class="grid three">
   <article class="card stat-card">
-    <p class="label">今日の総記録時間</p>
-    <p class="metric">{{ summary.total_minutes }} 分</p>
+    <p class="label">記録時間</p>
+    <p class="metric">{{ summary.total_minutes }} min</p>
   </article>
   <article class="card stat-card">
-    <p class="label">今日のログ件数</p>
-    <p class="metric">{{ entries|length }} 件</p>
+    <p class="label">タスク数</p>
+    <p class="metric">{{ task_options|length }}</p>
+  </article>
+  <article class="card stat-card">
+    <p class="label">成果物候補</p>
+    <p class="metric">{{ summary.artifact_count }}</p>
   </article>
 </section>
 
 <section class="grid two">
+  <article class="card">
+    <div class="row-between">
+      <div>
+        <h3>今の作業を選択</h3>
+        <p class="muted">大項目ごとに並んだ定義済みタスクから開始できます。</p>
+      </div>
+      <a href="/tasks" class="button-link">タスク定義を開く</a>
+    </div>
+    <div class="stack-list grouped-stack">
+      {% for group in task_groups %}
+      <section class="group-card">
+        <div class="group-header">
+          <h4>{{ group.major }}</h4>
+          <span class="badge">{{ group.tasks|length }} tasks</span>
+        </div>
+        <div class="stack-list">
+          {% for task in group.tasks %}
+          <form method="post" action="/tasks/start" class="task-picker">
+            <input type="hidden" name="task_id" value="{{ task.id }}">
+            <div>
+              <p class="item-title">{{ task.title }}</p>
+              <p class="muted">{{ task.path_text }}</p>
+            </div>
+            <button type="submit" class="ghost">開始</button>
+          </form>
+          {% endfor %}
+        </div>
+      </section>
+      {% else %}
+      <p class="muted">まだタスクがありません。Tasks 画面で定義してください。</p>
+      {% endfor %}
+    </div>
+    {% if active_session %}
+    <form method="post" action="/tasks/stop" class="inline-form">
+      <button type="submit" class="secondary">現在のタスクを終了</button>
+    </form>
+    {% endif %}
+  </article>
+
   <article class="card">
     <h3>記録設定</h3>
     <form method="post" action="/recording/start" class="stack-form">
@@ -31,11 +74,11 @@
       </label>
       <label class="checkbox-row">
         <input type="checkbox" name="enable_ocr" {% if settings.enable_ocr %}checked{% endif %}>
-        OCRを使う
+        OCR を使う
       </label>
       <label class="checkbox-row">
         <input type="checkbox" name="use_ai" {% if settings.use_ai %}checked{% endif %}>
-        低信頼時のみAI補完を使う
+        判定が弱いとき AI を使う
       </label>
       <label>AI Provider
         <select name="ai_provider">
@@ -44,57 +87,57 @@
           {% endfor %}
         </select>
       </label>
-      <label>AI呼び出し閾値
+      <label>AI 呼び出し閾値
         <input type="number" step="0.05" min="0" max="1" name="ai_threshold" value="{{ settings.ai_threshold }}">
       </label>
       <div class="button-row">
-        <button type="submit" class="primary">記録開始</button>
+        <button type="submit" class="primary">記録を開始</button>
       </div>
     </form>
-    <form method="post" action="/recording/stop">
-      <button type="submit" class="secondary">停止</button>
-    </form>
-    <form method="post" action="/recording/capture">
-      <button type="submit" class="ghost">1回だけ記録</button>
-    </form>
-  </article>
-
-  <article class="card">
-    <h3>カテゴリ別の時間</h3>
-    {% if summary.totals %}
-    <div class="stack-list">
-      {% for item in summary.totals %}
-      <div class="row-between">
-        <span>{{ item.activity_label }}</span>
-        <strong>{{ item.minutes }} 分</strong>
-      </div>
-      {% endfor %}
+    <div class="button-row">
+      <form method="post" action="/recording/stop"><button type="submit" class="secondary">記録を停止</button></form>
+      <form method="post" action="/recording/capture"><button type="submit" class="ghost">1回だけ記録</button></form>
     </div>
-    {% else %}
-    <p class="muted">まだログがありません。サンプルデータまたは記録開始で確認できます。</p>
-    {% endif %}
   </article>
 </section>
 
-<section class="card">
-  <h3>最近のログ</h3>
-  {% if entries %}
-  <div class="stack-list">
-    {% for item in entries[-5:]|reverse %}
-    <div class="timeline-row compact">
-      <div>
-        <p class="item-title">{{ item.activity_label }}</p>
-        <p class="muted">{{ item.activity_summary }}</p>
+<section class="grid two">
+  <article class="card">
+    <h3>本日のタスク実績</h3>
+    <div class="stack-list">
+      {% for item in summary.task_totals %}
+      <div class="row-between">
+        <span>{{ item.task_name }}</span>
+        <strong>{{ item.minutes }} min</strong>
       </div>
-      <div class="meta-right">
-        <span>{{ item.timestamp[11:16] }}</span>
-        <span>{{ item.inference_source }}</span>
-      </div>
+      {% else %}
+      <p class="muted">まだタスクセッションはありません。</p>
+      {% endfor %}
     </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="muted">表示できるログがありません。</p>
-  {% endif %}
+    <div class="note-block">
+      <p>手動キャプチャ: {{ summary.manual_capture_count }}</p>
+      <p>現在時刻: {{ now_text }}</p>
+    </div>
+  </article>
+
+  <article class="card">
+    <h3>直近の記録</h3>
+    <div class="stack-list">
+      {% for item in entries[-5:]|reverse %}
+      <div class="timeline-row compact">
+        <div>
+          <p class="item-title">{{ item.activity_label }}</p>
+          <p class="muted">{{ item.task_path_text or "タスク未選択" }}</p>
+        </div>
+        <div class="meta-right">
+          <span>{{ item.timestamp[11:19] }}</span>
+          <span>{{ item.capture_kind }}</span>
+        </div>
+      </div>
+      {% else %}
+      <p class="muted">まだログがありません。</p>
+      {% endfor %}
+    </div>
+  </article>
 </section>
 {% endblock %}

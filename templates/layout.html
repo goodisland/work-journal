@@ -3,22 +3,37 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ title if title else "Work Journal Mock" }}</title>
+    <title>{{ title if title else "作業ジャーナル" }}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
   </head>
   <body>
+    {% if active_session %}
+    <div class="active-banner">
+      <div>
+        <strong>作業記録中</strong>
+        <span>{{ active_session.task_path_text }}</span>
+      </div>
+      <div class="banner-actions">
+        <span>{{ active_session.started_at[11:19] }} 開始</span>
+        <a href="/focus">作業中画面</a>
+      </div>
+    </div>
+    {% endif %}
     <div class="page-shell">
       <aside class="sidebar">
         <div>
-          <p class="eyebrow">Reflection Support</p>
-          <h1>Work Journal</h1>
-          <p class="muted">スクリーンショットと軽い推定から、自分用ログと公開用日報を分けて作るローカルモックです。</p>
+          <p class="eyebrow">タスク記録</p>
+          <h1>作業ジャーナル</h1>
+          <p class="muted">階層タスク、スクリーンショット、成果物候補をまとめて記録し、振り返りや共有に使える形へ整理します。</p>
         </div>
         <nav class="nav">
-          <a href="/">Dashboard</a>
-          <a href="/timeline">Timeline</a>
-          <a href="/private-summary">Private Summary</a>
-          <a href="/public-report">Public Report</a>
+          <a href="/">ダッシュボード</a>
+          <a href="/tasks">タスク定義</a>
+          <a href="/focus">作業中画面</a>
+          <a href="/artifacts">成果物</a>
+          <a href="/timeline">タイムライン</a>
+          <a href="/private-summary">自分用サマリー</a>
+          <a href="/public-report">共有レポート</a>
         </nav>
       </aside>
       <main class="content">

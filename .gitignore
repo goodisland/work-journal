@@ -9,6 +9,7 @@ venv/
 
 # Secrets and local config
 .env
+.vscode/
 
 # OS and editor files
 .DS_Store
@@ -20,8 +21,9 @@ server.out.log
 server.err.log
 
 # Generated application data
-data/screenshots/
-data/logs/activity_log.jsonl
+data/**
 
-# Keep the sample log for demos
+# Keep template data for demos
+!data/
+!data/logs/
 !data/logs/sample_activity_log.jsonl

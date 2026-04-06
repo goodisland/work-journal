@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="focus-shell">
+  {% if active_session %}
+  <article class="focus-panel">
+    <p class="eyebrow">Focus Mode</p>
+    <h2>{{ active_session.task_title }}</h2>
+    <p class="focus-path">{{ active_session.task_path_text }}</p>
+    <div class="focus-meta">
+      <div>
+        <span class="label">開始</span>
+        <strong>{{ active_session.started_at[11:19] }}</strong>
+      </div>
+      <div>
+        <span class="label">成果物</span>
+        <strong>{{ active_session.screenshots|length }}</strong>
+      </div>
+      <div>
+        <span class="label">今日の手動キャプチャ</span>
+        <strong>{{ summary.manual_capture_count }}</strong>
+      </div>
+    </div>
+    <div class="button-row">
+      <form method="post" action="/tasks/capture">
+        <button type="submit" class="primary">この画面から成果物を保存</button>
+      </form>
+      <form method="post" action="/tasks/stop">
+        <button type="submit" class="secondary">このタスクを終了</button>
+      </form>
+    </div>
+    <p class="muted">このページを別ウィンドウで前面に置くと、いま何を記録しているかを常に確認できます。</p>
+  </article>
+  {% else %}
+  <article class="focus-panel">
+    <p class="eyebrow">Focus Mode</p>
+    <h2>タスク未開始</h2>
+    <p class="muted">ダッシュボードでタスクを選んで開始すると、この画面が記録中の前面パネルとして使えます。</p>
+    <a href="/" class="button-link">ダッシュボードへ戻る</a>
+  </article>
+  {% endif %}
+</section>
+{% endblock %}

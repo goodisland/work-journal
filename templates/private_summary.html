@@ -3,8 +3,8 @@
 <section class="hero-card">
   <div>
     <p class="eyebrow">Private Summary</p>
-    <h2>自分用サマリー</h2>
-    <p class="muted">詳細ログは自分だけが見返す想定で、改善ポイントや切り替え傾向まで含めています。</p>
+    <h2>自分用の振り返り</h2>
+    <p class="muted">タスク単位の実績と画面ログを、同じ場所で確認できます。</p>
   </div>
   <div class="status-pill running">
     {{ summary.total_minutes }} min
@@ -13,69 +13,65 @@
 
 <section class="grid two">
   <article class="card">
-    <h3>時間を多く使った作業</h3>
-    {% for item in summary.top_labels %}
+    <h3>タスク別の実績</h3>
+    {% for item in summary.task_totals %}
     <div class="row-between">
-      <span>{{ item.activity_label }}</span>
-      <strong>{{ item.minutes }} 分</strong>
+      <span>{{ item.task_name }}</span>
+      <strong>{{ item.minutes }} min</strong>
     </div>
     {% else %}
-    <p class="muted">まだ集計対象のログがありません。</p>
+    <p class="muted">まだタスクセッションがありません。</p>
     {% endfor %}
   </article>
   <article class="card">
-    <h3>切り替えが多かった時間帯</h3>
+    <h3>切り替えと成果物</h3>
+    <div class="row-between"><span>切り替え回数</span><strong>{{ summary.transition_count }}</strong></div>
+    <div class="row-between"><span>成果物候補</span><strong>{{ summary.artifact_count }}</strong></div>
+    <div class="row-between"><span>手動キャプチャ</span><strong>{{ summary.manual_capture_count }}</strong></div>
     {% for item in summary.busy_hours %}
-    <div class="row-between">
-      <span>{{ item.hour }}</span>
-      <strong>{{ item.count }} 回</strong>
-    </div>
-    {% else %}
-    <p class="muted">目立った切り替えはまだありません。</p>
+    <div class="row-between"><span>{{ item.hour }}</span><strong>{{ item.count }} 回</strong></div>
     {% endfor %}
-    <p class="muted">総切り替え回数: {{ summary.transition_count }} 回</p>
   </article>
 </section>
 
 <section class="grid two">
   <article class="card">
-    <h3>改善提案</h3>
+    <h3>改善メモ</h3>
     <div class="stack-list">
       {% for suggestion in summary.suggestions %}
       <p>{{ suggestion }}</p>
-      {% else %}
-      <p class="muted">提案を出すだけのログがまだありません。</p>
       {% endfor %}
     </div>
   </article>
   <article class="card">
-    <h3>長時間作業</h3>
-    {% for item in summary.long_running %}
+    <h3>作業分類</h3>
+    {% for item in summary.top_labels %}
     <div class="row-between">
       <span>{{ item.activity_label }}</span>
-      <strong>{{ item.minutes }} 分</strong>
+      <strong>{{ item.minutes }} min</strong>
     </div>
     {% else %}
-    <p class="muted">長時間のカテゴリはまだありません。</p>
+    <p class="muted">まだ自動分類ログがありません。</p>
     {% endfor %}
   </article>
 </section>
 
 <section class="card">
-  <h3>時系列まとめ</h3>
+  <h3>セッション一覧</h3>
   <div class="stack-list">
-    {% for item in summary.timeline %}
+    {% for session in sessions %}
     <div class="timeline-row compact">
       <div>
-        <p class="item-title">{{ item.timestamp[11:16] }} / {{ item.activity_label }}</p>
-        <p class="muted">{{ item.activity_summary }}</p>
+        <p class="item-title">{{ session.task_path_text }}</p>
+        <p class="muted">{{ session.started_at[11:19] }} - {{ session.ended_at[11:19] if session.ended_at else "実行中" }}</p>
       </div>
       <div class="meta-right">
-        <span>{{ item.duration_minutes }} 分</span>
+        <span>{{ session.duration_minutes if session.duration_minutes is defined else "-" }} min</span>
+        <span>{{ session.screenshots|length }} captures</span>
       </div>
     </div>
     {% else %}
-    <p class="muted">まだログがありません。</p>
+    <p class="muted">本日のセッションはまだありません。</p>
     {% endfor %}
   </div>
 </section>

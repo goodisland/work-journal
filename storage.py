@@ -12,6 +12,9 @@ SCREENSHOTS_DIR = DATA_DIR / "screenshots"
 LOGS_DIR = DATA_DIR / "logs"
 ACTIVITY_LOG_PATH = LOGS_DIR / "activity_log.jsonl"
 SAMPLE_LOG_PATH = LOGS_DIR / "sample_activity_log.jsonl"
+TASKS_PATH = DATA_DIR / "tasks.json"
+ACTIVE_TASK_SESSION_PATH = DATA_DIR / "active_task_session.json"
+TASK_SESSION_LOG_PATH = LOGS_DIR / "task_sessions.jsonl"
 
 
 def ensure_directories() -> None:
@@ -31,11 +34,32 @@ def append_log(entry: dict) -> None:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def append_jsonl(path: Path, entry: dict) -> None:
+    ensure_directories()
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
 def write_log_file(path: Path, entries: Iterable[dict]) -> None:
     ensure_directories()
     with path.open("w", encoding="utf-8") as fh:
         for entry in entries:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def read_json(path: Path, default):
+    ensure_directories()
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return default
+
+
+def write_json(path: Path, payload: object) -> None:
+    ensure_directories()
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def read_logs(target_date: date | None = None, include_sample: bool = True) -> list[dict]:

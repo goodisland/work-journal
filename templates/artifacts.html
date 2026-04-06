@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Artifacts</p>
+    <h2>成果物一覧</h2>
+    <p class="muted">手動保存した成果物キャプチャを、タスクごとにまとめて確認できます。</p>
+  </div>
+  <div class="status-pill running">
+    {{ summary.artifact_count }} captures
+  </div>
+</section>
+
+<section class="grid three">
+  <article class="card stat-card">
+    <p class="label">成果物候補</p>
+    <p class="metric">{{ summary.artifact_count }}</p>
+  </article>
+  <article class="card stat-card">
+    <p class="label">手動キャプチャ</p>
+    <p class="metric">{{ summary.manual_capture_count }}</p>
+  </article>
+  <article class="card stat-card">
+    <p class="label">セッション数</p>
+    <p class="metric">{{ artifact_groups|length }}</p>
+  </article>
+</section>
+
+<section class="stack-list grouped-stack">
+  {% for group in artifact_groups %}
+  <article class="card">
+    <div class="row-between">
+      <div>
+        <h3>{{ group.task_path_text }}</h3>
+        <p class="muted">{{ group.started_at[11:19] if group.started_at else "-" }} 開始</p>
+      </div>
+      <span class="badge">{{ group.screenshots|length }} captures</span>
+    </div>
+    <div class="artifact-grid">
+      {% for shot in group.screenshots %}
+      <figure class="artifact-card">
+        <img src="/{{ shot.screenshot_path }}" alt="artifact preview" class="artifact-thumb">
+        <figcaption class="muted">{{ shot.captured_at[11:19] }}</figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+  </article>
+  {% else %}
+  <article class="card">
+    <p class="muted">まだ成果物キャプチャはありません。作業中画面から「成果物を保存」を押すとここに並びます。</p>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

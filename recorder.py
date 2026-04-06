@@ -69,12 +69,14 @@ class RecorderService:
         use_ai: bool = False,
         ai_provider: str = "mock",
         ai_threshold: float = 0.6,
+        task_context_provider=None,
     ) -> None:
         self.interval_seconds = interval_seconds
         self.enable_ocr = enable_ocr
         self.use_ai = use_ai
         self.ai_provider = ai_provider
         self.ai_threshold = ai_threshold
+        self.task_context_provider = task_context_provider
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
@@ -125,10 +127,11 @@ class RecorderService:
             elapsed = time.time() - started_at
             self._stop_event.wait(max(0.5, self.interval_seconds - elapsed))
 
-    def record_once(self) -> dict:
+    def record_once(self, task_context: dict | None = None, capture_kind: str = "auto") -> dict:
         ts = datetime.now().replace(microsecond=0)
         output_path = get_screenshot_path(ts)
         window_title = get_active_window_title()
+        context = task_context if task_context is not None else self._get_task_context()
 
         try:
             capture_screenshot(output_path)
@@ -146,7 +149,19 @@ class RecorderService:
         entry = {
             "timestamp": ts.isoformat(),
             "screenshot_path": str(output_path.relative_to(Path(__file__).resolve().parent)).replace("\\", "/"),
+            "capture_kind": capture_kind,
+            **context,
             **analysis,
         }
         append_log(entry)
         return entry
+
+    def _get_task_context(self) -> dict:
+        if callable(self.task_context_provider):
+            try:
+                context = self.task_context_provider() or {}
+                if isinstance(context, dict):
+                    return context
+            except Exception:
+                return {}
+        return {}
