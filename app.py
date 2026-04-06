@@ -1,20 +1,36 @@
 from __future__ import annotations
 
 import calendar
+import json
 import os
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from urllib.parse import quote
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from recorder import RecorderService
-from reporter import build_artifact_groups, build_private_summary, build_public_report
+from report_exporter import save_html, save_pdf
+from remote_manager import RemoteSessionService
+from reporter import build_artifact_groups, build_private_summary, build_public_report, build_weekly_report, week_start_for
 from sample_data import ensure_sample_data
-from storage import BASE_DIR, ensure_directories, read_logs
+from storage import (
+    ACTIVITY_LOG_PATH,
+    ACTIVE_TASK_SESSION_PATH,
+    BASE_DIR,
+    TASK_SESSION_LOG_PATH,
+    detect_jsonl_kind,
+    ensure_directories,
+    get_daily_report_dir,
+    get_weekly_report_dir,
+    import_jsonl_entries,
+    read_logs,
+    write_json,
+)
 from task_manager import TaskService
 
 
@@ -28,14 +44,66 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 app.mount("/data", StaticFiles(directory=str(BASE_DIR / "data")), name="data")
 
 task_service = TaskService()
+remote_service = RemoteSessionService()
+
+
+def get_recording_context() -> dict:
+    context = {}
+    context.update(task_service.get_task_context())
+    context.update(remote_service.get_context())
+    return context
+
+
 recorder_service = RecorderService(
     interval_seconds=int(os.getenv("CAPTURE_INTERVAL_SECONDS", "60")),
     enable_ocr=os.getenv("OCR_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
     use_ai=os.getenv("AI_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
     ai_provider=os.getenv("AI_PROVIDER", "mock"),
     ai_threshold=float(os.getenv("AI_CONFIDENCE_THRESHOLD", "0.6")),
-    task_context_provider=task_service.get_task_context,
+    task_context_provider=get_recording_context,
 )
+
+
+def build_mode_status(active_session: dict | None, active_remote_session: dict | None) -> dict:
+    if active_remote_session:
+        host = active_remote_session.get("remote_host", "").strip()
+        tool = active_remote_session.get("remote_tool", "").strip() or "リモート接続"
+        detail = tool if not host else f"{tool} / {host}"
+        return {
+            "key": "remote",
+            "label": "リモート作業モード",
+            "detail": detail,
+            "description": "接続先の作業内容をメモ付きで記録するモードです。",
+        }
+    if active_session:
+        detail = active_session.get("task_path_text", "") or active_session.get("task_title", "") or "タスク作業中"
+        return {
+            "key": "task",
+            "label": "ローカル作業モード",
+            "detail": detail,
+            "description": "このPC上の作業を通常どおり記録しています。",
+        }
+    return {
+        "key": "idle",
+        "label": "待機モード",
+        "detail": "まだモードは開始されていません",
+        "description": "モード選択ウィンドウからローカル作業かリモート作業を選べます。",
+    }
+
+
+def localize_import_message(message: str) -> str:
+    fixed = {
+        "failed_to_read_upload": "アップロードしたファイルを読み込めませんでした。",
+        "no_valid_jsonl_entries": "有効な JSONL エントリを読み込めませんでした。",
+        "could_not_detect_log_kind": "ログ種別を判定できませんでした。",
+    }
+    if message in fixed:
+        return fixed[message]
+    if message.startswith("activity:"):
+        return message.replace("activity:", "アクティビティログ: ").replace("imported=", "追加=").replace("skipped=", "重複スキップ=").replace("invalid=", "不正行=")
+    if message.startswith("task_sessions:"):
+        return message.replace("task_sessions:", "タスクセッション: ").replace("imported=", "追加=").replace("skipped=", "重複スキップ=").replace("invalid=", "不正行=")
+    return message
 
 
 def empty_summary() -> dict:
@@ -58,6 +126,9 @@ def empty_summary() -> dict:
         "top_directories": [],
         "edit_summaries": [],
         "diff_stats": {"added_lines": 0, "removed_lines": 0},
+        "remote_session_count": 0,
+        "remote_minutes": 0,
+        "remote_hosts": [],
     }
 
 
@@ -134,6 +205,20 @@ def get_summary_for_date(target_date: date, task_lookup: dict[str, dict] | None 
     entries = get_logs_for_date(target_date, lookup)
     sessions = get_sessions_for_date(target_date, lookup)
     return build_private_summary(entries, sessions=sessions) if entries or sessions else empty_summary()
+
+
+def export_template_reports(template_name: str, export_name: str, context: dict, report_dir, render_context: dict | None = None) -> dict:
+    template = templates.get_template(template_name)
+    payload = render_context or context
+    html = template.render(payload)
+    html_path = save_html(report_dir / f"{export_name}.html", html)
+    title = context.get("title") or export_name
+    pdf_path, pdf_error = save_pdf(report_dir / f"{export_name}.pdf", title, html)
+    return {
+        "html_path": str(html_path.relative_to(BASE_DIR)).replace("\\", "/"),
+        "pdf_path": str(pdf_path.relative_to(BASE_DIR)).replace("\\", "/") if pdf_path else "",
+        "pdf_error": pdf_error,
+    }
 
 
 def available_log_dates() -> list[date]:
@@ -343,7 +428,11 @@ def build_base_context(request: Request, selected_date: date | None = None, show
     task_lookup = get_task_lookup()
     active_session = task_service.get_active_session()
     active_session = decorate_session(active_session, task_lookup) if active_session else None
+    active_remote_session = remote_service.get_active_session()
     selected_sessions = get_sessions_for_date(target_date, task_lookup)
+    import_message = localize_import_message(request.query_params.get("import_message", "").strip())
+    import_status = request.query_params.get("import_status", "").strip()
+    mode_status = build_mode_status(active_session, active_remote_session)
     return {
         "request": request,
         "recording": recorder_service.is_running,
@@ -355,6 +444,7 @@ def build_base_context(request: Request, selected_date: date | None = None, show
             "ai_threshold": recorder_service.ai_threshold,
         },
         "active_session": active_session,
+        "active_remote_session": active_remote_session,
         "task_options": task_service.build_task_options(),
         "task_groups": task_service.build_task_groups(),
         "now_text": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -365,6 +455,9 @@ def build_base_context(request: Request, selected_date: date | None = None, show
             "recording": recorder_service.is_running,
             "active_task_id": active_session.get("task_id", "") if active_session else "",
             "active_session_started_at": active_session.get("started_at", "") if active_session else "",
+            "remote_tool": active_remote_session.get("remote_tool", "") if active_remote_session else "",
+            "remote_host": active_remote_session.get("remote_host", "") if active_remote_session else "",
+            "mode_key": mode_status["key"],
         },
         "selected_date": target_date,
         "show_log_filters": show_log_filters,
@@ -372,17 +465,23 @@ def build_base_context(request: Request, selected_date: date | None = None, show
         "calendar_view": build_calendar_view(target_date, task_lookup),
         "day_schedule": build_day_schedule(target_date, selected_sessions),
         "task_lookup": task_lookup,
+        "import_message": import_message,
+        "import_status": import_status,
+        "mode_status": mode_status,
     }
 
 
 @app.get("/api/ui-state")
 def ui_state():
     active_session = task_service.get_active_session()
+    active_remote_session = remote_service.get_active_session()
     return JSONResponse(
         {
             "recording": recorder_service.is_running,
             "active_task_id": active_session.get("task_id", "") if active_session else "",
             "active_session_started_at": active_session.get("started_at", "") if active_session else "",
+            "remote_tool": active_remote_session.get("remote_tool", "") if active_remote_session else "",
+            "remote_host": active_remote_session.get("remote_host", "") if active_remote_session else "",
         }
     )
 
@@ -456,13 +555,29 @@ def private_summary(request: Request):
     task_lookup = get_task_lookup()
     entries = get_logs_for_date(selected_date, task_lookup)
     sessions = get_sessions_for_date(selected_date, task_lookup)
+    summary_payload = build_private_summary(entries, sessions=sessions) if entries or sessions else empty_summary()
     context = build_base_context(request, selected_date=selected_date, show_log_filters=True)
     context.update(
         {
-            "summary": build_private_summary(entries, sessions=sessions) if entries or sessions else empty_summary(),
+            "title": f"{selected_date.isoformat()} 日次サマリー",
+            "summary": summary_payload,
             "entries": entries,
             "sessions": sessions,
         }
+    )
+    export_context = {
+        "title": f"{selected_date.isoformat()} 日次サマリー",
+        "report_date": selected_date.isoformat(),
+        "summary": summary_payload,
+        "sessions": sessions,
+        "entries": entries,
+    }
+    context["saved_reports"] = export_template_reports(
+        "exports/daily_private_report.html",
+        "private_summary",
+        context,
+        get_daily_report_dir(selected_date),
+        render_context=export_context,
     )
     return templates.TemplateResponse("private_summary.html", context)
 
@@ -475,8 +590,68 @@ def public_report(request: Request):
     sessions = get_sessions_for_date(selected_date, task_lookup)
     report = build_public_report(entries, sessions=sessions)
     context = build_base_context(request, selected_date=selected_date, show_log_filters=True)
-    context.update({"report": report, "sessions": sessions})
+    context.update({"title": f"{selected_date.isoformat()} 公開レポート", "report": report, "sessions": sessions})
+    export_context = {
+        "title": f"{selected_date.isoformat()} 公開レポート",
+        "report_date": selected_date.isoformat(),
+        "report": report,
+        "sessions": sessions,
+    }
+    context["saved_reports"] = export_template_reports(
+        "exports/daily_public_report.html",
+        "public_report",
+        context,
+        get_daily_report_dir(selected_date),
+        render_context=export_context,
+    )
     return templates.TemplateResponse("public_report.html", context)
+
+
+@app.get("/weekly-report", response_class=HTMLResponse)
+def weekly_report(request: Request):
+    selected_date = resolve_selected_date(request)
+    task_lookup = get_task_lookup()
+    week_start = week_start_for(selected_date)
+    daily_packets = []
+    for offset in range(7):
+        current_date = week_start + timedelta(days=offset)
+        entries = get_logs_for_date(current_date, task_lookup)
+        sessions = get_sessions_for_date(current_date, task_lookup)
+        if not entries and not sessions:
+            continue
+        private_summary_payload = build_private_summary(entries, sessions=sessions)
+        public_report_payload = build_public_report(entries, sessions=sessions)
+        daily_packets.append(
+            {
+                "date": current_date,
+                "entries": entries,
+                "sessions": sessions,
+                "private_summary": private_summary_payload,
+                "public_report": public_report_payload,
+            }
+        )
+    weekly_payload = build_weekly_report(selected_date, daily_packets)
+    context = build_base_context(request, selected_date=selected_date, show_log_filters=True)
+    context.update(
+        {
+            "title": f"{weekly_payload['week_label']} 週次報告",
+            "weekly": weekly_payload,
+            "daily_packets": daily_packets,
+        }
+    )
+    export_context = {
+        "title": f"{weekly_payload['week_label']} 週次報告",
+        "weekly": weekly_payload,
+        "daily_packets": daily_packets,
+    }
+    context["saved_reports"] = export_template_reports(
+        "exports/weekly_report_export.html",
+        "weekly_report",
+        context,
+        get_weekly_report_dir(week_start),
+        render_context=export_context,
+    )
+    return templates.TemplateResponse("weekly_report.html", context)
 
 
 @app.get("/artifacts", response_class=HTMLResponse)
@@ -500,6 +675,13 @@ def focus_mode(request: Request):
     context = build_base_context(request)
     context.update({"summary": get_summary_for_date(date.today(), context["task_lookup"])})
     return templates.TemplateResponse("focus.html", context)
+
+
+@app.get("/mode-control", response_class=HTMLResponse)
+def mode_control(request: Request):
+    context = build_base_context(request)
+    context.update({"title": "モード選択"})
+    return templates.TemplateResponse("mode_control.html", context)
 
 
 @app.get("/mini-control", response_class=HTMLResponse)
@@ -540,7 +722,15 @@ def update_task(
 
 @app.post("/tasks/start")
 def start_task(task_id: str = Form(...)):
-    task_service.start_task(task_id)
+    session = task_service.start_task(task_id)
+    active_remote = remote_service.get_active_session()
+    if active_remote:
+        session["work_mode"] = "remote"
+        session["remote_tool"] = active_remote.get("remote_tool", "")
+        session["remote_host"] = active_remote.get("remote_host", "")
+        session["remote_note"] = active_remote.get("remote_note", "")
+        session["remote_started_at"] = active_remote.get("started_at", "")
+        write_json(ACTIVE_TASK_SESSION_PATH, session)
     if not recorder_service.is_running:
         recorder_service.start()
     return RedirectResponse(url="/focus", status_code=303)
@@ -600,6 +790,96 @@ def pause_recording(redirect_to: str = Form("/")):
     if not redirect_to or not redirect_to.startswith("/"):
         redirect_to = "/"
     return RedirectResponse(url=redirect_to, status_code=303)
+
+
+@app.post("/remote/start")
+def start_remote_session(
+    remote_tool: str = Form(...),
+    remote_host: str = Form(""),
+    remote_note: str = Form(""),
+    redirect_to: str = Form("/"),
+):
+    session = remote_service.start_session(remote_tool=remote_tool, remote_host=remote_host, remote_note=remote_note)
+    active_task = task_service.get_active_session()
+    if active_task:
+        active_task["work_mode"] = "remote"
+        active_task["remote_tool"] = session.get("remote_tool", "")
+        active_task["remote_host"] = session.get("remote_host", "")
+        active_task["remote_note"] = session.get("remote_note", "")
+        active_task["remote_started_at"] = session.get("started_at", "")
+        write_json(ACTIVE_TASK_SESSION_PATH, active_task)
+    if not redirect_to or not redirect_to.startswith("/"):
+        redirect_to = "/"
+    return RedirectResponse(url=redirect_to, status_code=303)
+
+
+@app.post("/remote/stop")
+def stop_remote_session(redirect_to: str = Form("/")):
+    remote_service.stop_session()
+    active_task = task_service.get_active_session()
+    if active_task:
+        active_task["work_mode"] = "local"
+        active_task["remote_tool"] = ""
+        active_task["remote_host"] = ""
+        active_task["remote_note"] = ""
+        active_task["remote_started_at"] = ""
+        write_json(ACTIVE_TASK_SESSION_PATH, active_task)
+    if not redirect_to or not redirect_to.startswith("/"):
+        redirect_to = "/"
+    return RedirectResponse(url=redirect_to, status_code=303)
+
+
+def _redirect_with_import_message(success: bool, message: str, redirect_to: str = "/") -> RedirectResponse:
+    separator = "&" if "?" in redirect_to else "?"
+    status = "success" if success else "error"
+    return RedirectResponse(
+        url=f"{redirect_to}{separator}import_status={quote(status)}&import_message={quote(message)}",
+        status_code=303,
+    )
+
+
+@app.post("/imports/jsonl")
+def import_jsonl(
+    log_kind: str = Form("auto"),
+    redirect_to: str = Form("/"),
+    jsonl_file: UploadFile = File(...),
+):
+    if not redirect_to or not redirect_to.startswith("/"):
+        redirect_to = "/"
+
+    try:
+        raw_text = jsonl_file.file.read().decode("utf-8-sig")
+    except Exception:
+        return _redirect_with_import_message(False, "failed_to_read_upload", redirect_to)
+
+    entries = []
+    invalid_lines = 0
+    for raw_line in raw_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except Exception:
+            invalid_lines += 1
+            continue
+        if isinstance(payload, dict):
+            entries.append(payload)
+        else:
+            invalid_lines += 1
+
+    if not entries:
+        return _redirect_with_import_message(False, "no_valid_jsonl_entries", redirect_to)
+
+    detected_kind = detect_jsonl_kind(entries)
+    resolved_kind = detected_kind if log_kind == "auto" else log_kind
+    if resolved_kind == "unknown":
+        return _redirect_with_import_message(False, "could_not_detect_log_kind", redirect_to)
+
+    target_path = ACTIVITY_LOG_PATH if resolved_kind == "activity" else TASK_SESSION_LOG_PATH
+    result = import_jsonl_entries(target_path, entries, resolved_kind)
+    message = f"{result['kind']}: imported={result['imported']} skipped={result['skipped']} invalid={invalid_lines}"
+    return _redirect_with_import_message(True, message, redirect_to)
 
 
 @app.post("/recording/capture")

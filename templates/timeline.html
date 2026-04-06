@@ -2,12 +2,12 @@
 {% block content %}
 <section class="hero-card">
   <div>
-    <p class="eyebrow">Timeline</p>
-    <h2>{{ date_browser.selected_date_label }} timeline</h2>
-    <p class="muted">Each capture now carries shell commands, touched files, and edit summaries when they can be observed.</p>
+    <p class="eyebrow">タイムライン</p>
+    <h2>{{ date_browser.selected_date_label }} のタイムライン</h2>
+    <p class="muted">各記録に、コマンド、編集ファイル、リモート作業情報があればあわせて表示します。</p>
   </div>
   <div class="status-pill {{ 'running' if recording else 'stopped' }}">
-    {{ "Recording" if recording else "Stopped" }}
+    {{ "記録中" if recording else "停止中" }}
   </div>
 </section>
 
@@ -26,17 +26,23 @@
         <span>{{ item.timestamp[11:16] }}</span>
       </div>
       <p>{{ item.activity_summary or item.activity_label }}</p>
-      <p class="muted">{{ item.task_path_text or "No active task" }}</p>
-      <p class="muted">{{ item.window_title or "Unknown window" }}</p>
+      <p class="muted">{{ item.task_path_text or "タスク未選択" }}</p>
+      <p class="muted">{{ item.window_title or "ウィンドウ情報なし" }}</p>
+      {% if item.work_mode == "remote" %}
+      <p class="muted">リモート: {{ item.remote_tool or "リモート接続" }}{% if item.remote_host %} / {{ item.remote_host }}{% endif %}{% if item.remote_note %} / {{ item.remote_note }}{% endif %}</p>
+      {% endif %}
       <div class="badge-row">
         <span class="badge">{{ item.capture_kind }}</span>
         <span class="badge">{{ item.inference_source }}</span>
-        <span class="badge">confidence {{ "%.2f"|format(item.confidence or 0) }}</span>
+        <span class="badge">信頼度 {{ "%.2f"|format(item.confidence or 0) }}</span>
+        {% if item.work_mode == "remote" %}
+        <span class="badge">リモート</span>
+        {% endif %}
         {% if item.command_count %}
-        <span class="badge">{{ item.command_count }} commands</span>
+        <span class="badge">{{ item.command_count }} コマンド</span>
         {% endif %}
         {% if item.edited_file_count %}
-        <span class="badge">{{ item.edited_file_count }} files</span>
+        <span class="badge">{{ item.edited_file_count }} ファイル</span>
         {% endif %}
       </div>
       {% if item.executed_commands %}
@@ -57,7 +63,7 @@
   </article>
   {% else %}
   <article class="card">
-    <p class="muted">No timeline entries were recorded for this day.</p>
+    <p class="muted">この日のタイムラインはまだありません。</p>
   </article>
   {% endfor %}
 </section>

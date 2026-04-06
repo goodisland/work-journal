@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">週次報告</p>
+    <h2>{{ weekly.week_label }}</h2>
+    <p class="muted">日次の内容を束ねて、週の進捗を文章で確認できるレポートです。</p>
+  </div>
+  <div class="status-pill running">
+    {{ weekly.total_minutes }} min
+  </div>
+</section>
+
+{% if saved_reports %}
+<section class="card">
+  <h3>保存ファイル</h3>
+  <div class="stack-list">
+    <p class="muted">HTML: <a href="/{{ saved_reports.html_path }}" target="_blank" rel="noopener">{{ saved_reports.html_path }}</a></p>
+    {% if saved_reports.pdf_path %}
+    <p class="muted">PDF: <a href="/{{ saved_reports.pdf_path }}" target="_blank" rel="noopener">{{ saved_reports.pdf_path }}</a></p>
+    {% elif saved_reports.pdf_error %}
+    <p class="muted">{{ saved_reports.pdf_error }}</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>週次概要</h3>
+  <div class="note-block">
+    <p>{{ weekly.narrative.overview }}</p>
+    <p>{{ weekly.narrative.remote_note }}</p>
+    <p><strong>来週の進め方:</strong> {{ weekly.narrative.next_action }}</p>
+  </div>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <h3>週次サマリー</h3>
+    <p>総作業時間: {{ weekly.total_minutes }} min</p>
+    <p>成果物数: {{ weekly.artifact_count }}</p>
+    <p>コマンド数: {{ weekly.command_count }}</p>
+    <p>リモート時間: {{ weekly.remote_minutes }} min</p>
+    {% for item in weekly.key_tasks %}
+    <p class="muted">主な作業: {{ item }}</p>
+    {% endfor %}
+    {% for host in weekly.remote_hosts %}
+    <p class="muted">主な接続先: {{ host }}</p>
+    {% endfor %}
+  </article>
+
+  <article class="card">
+    <h3>編集ハイライト</h3>
+    <div class="stack-list">
+      {% for item in weekly.edit_highlights %}
+      <p>{{ item }}</p>
+      {% else %}
+      <p class="muted">今週の編集ハイライトはありません。</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="card">
+  <h3>日別の進捗</h3>
+  <div class="stack-list">
+    {% for day in weekly.days %}
+    <div class="timeline-row compact">
+      <div>
+        <p class="item-title">{{ day.date_label }}</p>
+        <p class="muted">{{ day.narrative or day.progress }}</p>
+      </div>
+      <div class="meta-right">
+        <span>{{ day.total_minutes }} min</span>
+        {% if day.top_task_name %}
+        <span>{{ day.top_task_name }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="muted">この週の記録はまだありません。</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <h3>本文確認</h3>
+  <textarea id="weeklyReportText" readonly>{{ weekly.report_text }}</textarea>
+  <button class="primary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('weeklyReportText').value)">コピー</button>
+</section>
+{% endblock %}

@@ -4,10 +4,33 @@
   <div>
     <p class="eyebrow">日次サマリー</p>
     <h2>{{ date_browser.selected_date_label }} のサマリー</h2>
-    <p class="muted">作業時間、コマンド履歴、ファイル編集をまとめて、その日の動きを具体的に確認できます。</p>
+    <p class="muted">タスク、コマンド、編集内容、成果物、リモート作業をまとめて確認できます。</p>
   </div>
   <div class="status-pill running">
     {{ summary.total_minutes }} min
+  </div>
+</section>
+
+{% if saved_reports %}
+<section class="card">
+  <h3>保存ファイル</h3>
+  <div class="stack-list">
+    <p class="muted">HTML: <a href="/{{ saved_reports.html_path }}" target="_blank" rel="noopener">{{ saved_reports.html_path }}</a></p>
+    {% if saved_reports.pdf_path %}
+    <p class="muted">PDF: <a href="/{{ saved_reports.pdf_path }}" target="_blank" rel="noopener">{{ saved_reports.pdf_path }}</a></p>
+    {% elif saved_reports.pdf_error %}
+    <p class="muted">{{ saved_reports.pdf_error }}</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>要約</h3>
+  <div class="note-block">
+    <p>{{ summary.narrative.overview }}</p>
+    <p>{{ summary.narrative.detail }}</p>
+    <p><strong>次の着眼点:</strong> {{ summary.narrative.next_action }}</p>
   </div>
 </section>
 
@@ -33,10 +56,12 @@
     <h3>指標</h3>
     <div class="stack-list">
       <div class="row-between"><span>切り替え回数</span><strong>{{ summary.transition_count }}</strong></div>
-      <div class="row-between"><span>成果物</span><strong>{{ summary.artifact_count }}</strong></div>
+      <div class="row-between"><span>成果物数</span><strong>{{ summary.artifact_count }}</strong></div>
       <div class="row-between"><span>手動キャプチャ</span><strong>{{ summary.manual_capture_count }}</strong></div>
       <div class="row-between"><span>コマンド数</span><strong>{{ summary.command_count }}</strong></div>
       <div class="row-between"><span>編集ファイル数</span><strong>{{ summary.edited_file_count }}</strong></div>
+      <div class="row-between"><span>リモート回数</span><strong>{{ summary.remote_session_count }}</strong></div>
+      <div class="row-between"><span>リモート時間</span><strong>{{ summary.remote_minutes }}</strong></div>
       <div class="row-between"><span>追加行数</span><strong>{{ summary.diff_stats.added_lines }}</strong></div>
       <div class="row-between"><span>削除行数</span><strong>{{ summary.diff_stats.removed_lines }}</strong></div>
       {% for item in summary.busy_hours %}
@@ -48,12 +73,12 @@
 
 <section class="grid two">
   <article class="card">
-    <h3>提案</h3>
+    <h3>補足</h3>
     <div class="stack-list">
       {% for suggestion in summary.suggestions %}
       <p>{{ suggestion }}</p>
       {% else %}
-      <p class="muted">この日の提案はまだありません。</p>
+      <p class="muted">この日の補足はありません。</p>
       {% endfor %}
     </div>
   </article>
@@ -67,7 +92,10 @@
         <strong>{{ item.minutes }} min</strong>
       </div>
       {% else %}
-      <p class="muted">アクティビティラベルは検出されませんでした。</p>
+      <p class="muted">アクティビティの集計はまだありません。</p>
+      {% endfor %}
+      {% for host in summary.remote_hosts %}
+      <p class="muted">リモート接続先: {{ host }}</p>
       {% endfor %}
     </div>
   </article>
@@ -75,7 +103,7 @@
 
 <section class="grid two">
   <article class="card">
-    <h3>コマンド</h3>
+    <h3>上位コマンド</h3>
     <div class="stack-list">
       {% for item in summary.top_commands %}
       <div class="row-between">
@@ -83,7 +111,7 @@
         <strong>{{ item.count }}</strong>
       </div>
       {% else %}
-      <p class="muted">この日に実行されたコマンドはありません。</p>
+      <p class="muted">コマンド実行の記録はありません。</p>
       {% endfor %}
     </div>
   </article>
@@ -97,7 +125,7 @@
         <strong>{{ item.count }}</strong>
       </div>
       {% else %}
-      <p class="muted">保存されたファイル変更はありません。</p>
+      <p class="muted">編集ファイルの記録はありません。</p>
       {% endfor %}
       {% for path in summary.top_directories %}
       <p class="muted">{{ path }}</p>
@@ -112,7 +140,7 @@
     {% for item in summary.edit_summaries %}
     <p>{{ item }}</p>
     {% else %}
-    <p class="muted">編集サマリーはまだありません。</p>
+    <p class="muted">編集ハイライトはありません。</p>
     {% endfor %}
   </div>
 </section>
@@ -128,6 +156,9 @@
           {{ session.task_path_text }}
         </p>
         <p class="muted">{{ session.started_at[11:16] }} - {{ session.ended_at[11:16] if session.ended_at else "進行中" }}</p>
+        {% if session.work_mode == "remote" %}
+        <p class="muted">リモート: {{ session.remote_tool or "リモート接続" }}{% if session.remote_host %} / {{ session.remote_host }}{% endif %}</p>
+        {% endif %}
       </div>
       <div class="meta-right">
         <span>{{ session.duration_minutes }} min</span>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/report.css">
+  </head>
+  <body class="report-page">
+    <main class="report-shell">
+      <article class="report-paper">
+        <header class="report-header">
+          <p class="report-label">DAILY REPORT</p>
+          <h1 class="report-title">{{ report_date }} 公開レポート</h1>
+          <p class="report-subtitle">共有向けに、本日の進捗を文章でわかりやすく整理したレポートです。</p>
+        </header>
+
+        <section class="report-meta">
+          <div class="report-meta-card">
+            <p class="report-meta-label">作業項目数</p>
+            <p class="report-meta-value">{{ report.report_items|length }}</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">成果物数</p>
+            <p class="report-meta-value">{{ report.artifact_count }}</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">リモート回数</p>
+            <p class="report-meta-value">{{ report.remote_session_count }}</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">編集ファイル数</p>
+            <p class="report-meta-value">{{ report.edited_file_count }}</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">1. 要約</h2>
+          <div class="report-summary-box">
+            <p>{{ report.narrative.outline }}</p>
+            <p>{{ report.narrative.progress_paragraph }}</p>
+            <p>{{ report.narrative.supporting_note }}</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">2. 次のアクション</h2>
+          <div class="report-summary-box">
+            <p>{{ report.narrative.next_action_paragraph }}</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">3. 作業項目</h2>
+          <ul class="report-list">
+            {% for item in report.report_items %}
+            <li>{{ item }}</li>
+            {% else %}
+            <li>作業項目はありません。</li>
+            {% endfor %}
+          </ul>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">4. 参考情報</h2>
+          <table class="report-table">
+            <tbody>
+              <tr>
+                <th>成果物数</th>
+                <td>{{ report.artifact_count }}</td>
+              </tr>
+              <tr>
+                <th>手動キャプチャ</th>
+                <td>{{ report.manual_capture_count }}</td>
+              </tr>
+              <tr>
+                <th>主な接続先</th>
+                <td>{% if report.remote_hosts %}{{ report.remote_hosts | join(' / ') }}{% else %}なし{% endif %}</td>
+              </tr>
+              <tr>
+                <th>主なファイル</th>
+                <td>{% if report.top_files %}{{ report.top_files[0].path }}{% else %}なし{% endif %}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>

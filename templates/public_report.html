@@ -3,44 +3,58 @@
 <section class="hero-card">
   <div>
     <p class="eyebrow">公開レポート</p>
-    <h2>{{ date_browser.selected_date_label }} のレポート</h2>
-    <p class="muted">外部共有向けに、進捗と開発シグナルを簡潔にまとめたレポートです。</p>
+    <h2>{{ date_browser.selected_date_label }} の報告書</h2>
+    <p class="muted">共有向けに、進捗を文章でわかりやすくまとめたレポートです。</p>
+  </div>
+</section>
+
+{% if saved_reports %}
+<section class="card">
+  <h3>保存ファイル</h3>
+  <div class="stack-list">
+    <p class="muted">HTML: <a href="/{{ saved_reports.html_path }}" target="_blank" rel="noopener">{{ saved_reports.html_path }}</a></p>
+    {% if saved_reports.pdf_path %}
+    <p class="muted">PDF: <a href="/{{ saved_reports.pdf_path }}" target="_blank" rel="noopener">{{ saved_reports.pdf_path }}</a></p>
+    {% elif saved_reports.pdf_error %}
+    <p class="muted">{{ saved_reports.pdf_error }}</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>報告概要</h3>
+  <div class="note-block">
+    <p>{{ report.narrative.outline }}</p>
+    <p>{{ report.narrative.progress_paragraph }}</p>
+    <p>{{ report.narrative.supporting_note }}</p>
+    <p><strong>次のアクション:</strong> {{ report.narrative.next_action_paragraph }}</p>
   </div>
 </section>
 
 <section class="grid two">
   <article class="card">
-    <h3>注力項目</h3>
+    <h3>作業項目</h3>
     <div class="stack-list">
       {% for item in report.report_items %}
       <p>{{ item }}</p>
       {% else %}
-      <p class="muted">この日の記録タスクはありません。</p>
+      <p class="muted">この日の作業項目はありません。</p>
       {% endfor %}
     </div>
-    <h3>進捗</h3>
-    <p>{{ report.progress }}</p>
-    <h3>次のアクション</h3>
-    <p>{{ report.tomorrow }}</p>
-    <h3>懸念点</h3>
-    <p>{{ report.concerns }}</p>
   </article>
 
   <article class="card">
-    <h3>成果物とシグナル</h3>
-    <p>手動キャプチャ: {{ report.manual_capture_count }}</p>
+    <h3>参考情報</h3>
     <p>成果物数: {{ report.artifact_count }}</p>
+    <p>手動キャプチャ: {{ report.manual_capture_count }}</p>
     <p>コマンド数: {{ report.command_count }}</p>
     <p>編集ファイル数: {{ report.edited_file_count }}</p>
-    <p>追加行数: {{ report.diff_stats.added_lines }}</p>
-    <p>削除行数: {{ report.diff_stats.removed_lines }}</p>
-    <div class="artifact-grid">
-      {% for path in report.artifact_paths %}
-      <img src="/{{ path }}" alt="成果物プレビュー" class="artifact-thumb">
-      {% else %}
-      <p class="muted">手動キャプチャはありません。</p>
-      {% endfor %}
-    </div>
+    <p>リモート回数: {{ report.remote_session_count }}</p>
+    <p>リモート時間: {{ report.remote_minutes }} min</p>
+    {% for host in report.remote_hosts %}
+    <p class="muted">リモート接続先: {{ host }}</p>
+    {% endfor %}
   </article>
 </section>
 
@@ -57,33 +71,9 @@
   </article>
 
   <article class="card">
-    <h3>コマンドとファイル</h3>
-    <div class="stack-list">
-      {% for item in report.top_commands %}
-      <div class="row-between">
-        <span>{{ item.command }}</span>
-        <strong>{{ item.count }}</strong>
-      </div>
-      {% endfor %}
-      {% for item in report.top_files %}
-      <div class="row-between">
-        <span>{{ item.path }}</span>
-        <strong>{{ item.count }}</strong>
-      </div>
-      {% endfor %}
-      {% for path in report.top_directories %}
-      <p class="muted">{{ path }}</p>
-      {% endfor %}
-      {% if not report.top_commands and not report.top_files %}
-      <p class="muted">コマンドまたはファイルの要約はありません。</p>
-      {% endif %}
-    </div>
+    <h3>本文確認</h3>
+    <textarea id="reportText" readonly>{{ report.report_text }}</textarea>
+    <button class="primary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('reportText').value)">コピー</button>
   </article>
-</section>
-
-<section class="card">
-  <h3>レポート本文</h3>
-  <textarea id="reportText" readonly>{{ report.report_text }}</textarea>
-  <button class="primary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('reportText').value)">コピー</button>
 </section>
 {% endblock %}

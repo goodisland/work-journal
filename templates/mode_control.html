@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>モード選択</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  </head>
+  <body class="popup-body">
+    <main class="popup-shell">
+      <section class="hero-card popup-hero">
+        <div>
+          <p class="eyebrow">モード選択</p>
+          <h2>作業モードを切り替える</h2>
+          <p class="muted">ローカル作業かリモート作業かをここで選びます。</p>
+        </div>
+        <span class="status-pill {{ 'running' if mode_status.key != 'idle' else 'stopped' }}">{{ mode_status.label }}</span>
+      </section>
+
+      <section class="grid two popup-grid">
+        <article class="card">
+          <h3>ローカル作業モード</h3>
+          <p class="muted">このPC上の作業を通常どおり記録します。</p>
+          {% if active_remote_session %}
+          <form method="post" action="/remote/stop" class="stack-form">
+            <input type="hidden" name="redirect_to" value="/mode-control">
+            <button type="submit" class="primary">ローカル作業に戻す</button>
+          </form>
+          {% else %}
+          <p class="muted">現在はローカル作業モードです。</p>
+          {% endif %}
+        </article>
+
+        <article class="card">
+          <h3>リモート作業モード</h3>
+          <p class="muted">TeamViewer や RDP などの接続先情報を付けて記録します。</p>
+          <form method="post" action="/remote/start" class="stack-form">
+            <label>接続ツール
+              <select name="remote_tool">
+                {% for tool in ["TeamViewer", "AnyDesk", "Remote Desktop", "RDP", "その他"] %}
+                <option value="{{ tool }}" {% if active_remote_session and active_remote_session.remote_tool == tool %}selected{% endif %}>{{ tool }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>接続先
+              <input type="text" name="remote_host" value="{{ active_remote_session.remote_host if active_remote_session else '' }}" placeholder="client-pc-01">
+            </label>
+            <label>作業メモ
+              <input type="text" name="remote_note" value="{{ active_remote_session.remote_note if active_remote_session else '' }}" placeholder="ログ確認 / サポート / デプロイ">
+            </label>
+            <input type="hidden" name="redirect_to" value="/mode-control">
+            <button type="submit" class="primary">リモート作業を開始</button>
+          </form>
+        </article>
+      </section>
+
+      <section class="card">
+        <h3>現在の状態</h3>
+        <p><strong>{{ mode_status.label }}</strong></p>
+        <p>{{ mode_status.detail }}</p>
+        <p class="muted">{{ mode_status.description }}</p>
+        {% if active_session %}
+        <p class="muted">進行中タスク: {{ active_session.task_path_text }}</p>
+        {% endif %}
+      </section>
+    </main>
+    <script>
+      (() => {
+        const initialState = {{ ui_state | tojson }};
+        let lastState = JSON.stringify(initialState);
+
+        const checkState = async () => {
+          try {
+            const response = await fetch('/api/ui-state', { cache: 'no-store' });
+            if (!response.ok) return;
+            const nextState = await response.json();
+            const serialized = JSON.stringify(nextState);
+            if (serialized !== lastState) {
+              window.location.reload();
+            }
+          } catch (_) {
+            return;
+          }
+        };
+
+        window.setInterval(checkState, 1500);
+      })();
+    </script>
+  </body>
+</html>

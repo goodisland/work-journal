@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -19,7 +19,7 @@ def _duration_minutes(entries: list[dict], default_seconds: int = 5) -> tuple[di
         else:
             seconds = default_seconds
         minutes = seconds / 60.0
-        label = entry.get("activity_label", "Uncategorized")
+        label = entry.get("activity_label", "未分類")
         totals[label] += minutes
         item = dict(entry)
         item["duration_minutes"] = round(minutes, 2)
@@ -30,13 +30,13 @@ def _duration_minutes(entries: list[dict], default_seconds: int = 5) -> tuple[di
 def _session_task_totals(sessions: list[dict]) -> list[dict]:
     totals: dict[str, dict] = {}
     for session in sessions:
-        name = session.get("task_path_text") or session.get("task_title") or "Unassigned Task"
+        name = session.get("task_path_text") or session.get("task_title") or "未割り当てタスク"
         started_at = session.get("started_at", "")
         ended_at = session.get("ended_at", "")
         if started_at and ended_at:
             minutes = max(0.0, (_parse_timestamp(ended_at) - _parse_timestamp(started_at)).total_seconds() / 60.0)
         else:
-            minutes = session.get("duration_minutes", 0.0)
+            minutes = float(session.get("duration_minutes", 0.0) or 0.0)
         bucket = totals.setdefault(
             name,
             {
@@ -74,10 +74,7 @@ def _aggregate_commands(entries: list[dict]) -> tuple[list[dict], int]:
                 continue
             counts[command] += 1
             total += 1
-    return (
-        [{"command": command, "count": count} for command, count in counts.most_common(5)],
-        total,
-    )
+    return [{"command": command, "count": count} for command, count in counts.most_common(5)], total
 
 
 def _aggregate_files(entries: list[dict]) -> tuple[list[dict], list[str], int]:
@@ -110,6 +107,84 @@ def _collect_edit_summaries(entries: list[dict]) -> list[str]:
     return summaries
 
 
+def _aggregate_remote_sessions(sessions: list[dict]) -> tuple[int, float, list[str]]:
+    remote_count = 0
+    remote_minutes = 0.0
+    hosts = Counter()
+    for session in sessions:
+        if session.get("work_mode") != "remote":
+            continue
+        remote_count += 1
+        started_at = session.get("started_at", "")
+        ended_at = session.get("ended_at", "")
+        if started_at and ended_at:
+            minutes = max(0.0, (_parse_timestamp(ended_at) - _parse_timestamp(started_at)).total_seconds() / 60.0)
+        else:
+            minutes = float(session.get("duration_minutes", 0.0) or 0.0)
+        remote_minutes += minutes
+        host = session.get("remote_host") or session.get("remote_tool") or "リモート接続"
+        hosts[host] += 1
+    return remote_count, round(remote_minutes, 1), [host for host, _count in hosts.most_common(5)]
+
+
+def _aggregate_remote_entries(entries: list[dict]) -> tuple[int, float, list[str]]:
+    session_ids: set[str] = set()
+    hosts = Counter()
+    minutes = 0.0
+    for entry in entries:
+        if entry.get("work_mode") != "remote":
+            continue
+        session_id = entry.get("remote_session_id") or f"{entry.get('remote_tool', '')}:{entry.get('remote_host', '')}"
+        if session_id:
+            session_ids.add(session_id)
+        host = entry.get("remote_host") or entry.get("remote_tool") or "リモート接続"
+        hosts[host] += 1
+        minutes += float(entry.get("duration_minutes", 0.0) or 0.0)
+    return len(session_ids), round(minutes, 1), [host for host, _count in hosts.most_common(5)]
+
+
+def _build_private_narrative(summary: dict) -> dict:
+    top_task = summary["task_totals"][0]["task_name"] if summary["task_totals"] else "明確な主タスクはありませんでした"
+    top_label = summary["top_labels"][0]["activity_label"] if summary["top_labels"] else "活動ラベルは記録されていません"
+    command_sentence = f"コマンド実行は {summary['command_count']} 件" if summary["command_count"] else "コマンド実行は確認されませんでした"
+    remote_sentence = (
+        f"リモート作業は {summary['remote_session_count']} 回、合計 {summary['remote_minutes']} 分でした。"
+        if summary["remote_session_count"]
+        else "リモート作業はありませんでした。"
+    )
+    artifact_sentence = (
+        f"手動キャプチャ {summary['manual_capture_count']} 件を含む成果物 {summary['artifact_count']} 件を残しています。"
+        if summary["artifact_count"]
+        else "成果物として残したキャプチャはありませんでした。"
+    )
+    overview = (
+        f"この日の主な作業は「{top_task}」でした。"
+        f"活動ログ上では「{top_label}」が中心で、総作業時間は {summary['total_minutes']} 分です。"
+    )
+    detail = f"{command_sentence}、編集ファイルは {summary['edited_file_count']} 件です。{remote_sentence}{artifact_sentence}"
+    return {
+        "overview": overview,
+        "detail": detail,
+        "next_action": summary["suggestions"][0] if summary["suggestions"] else "翌日の着手ポイントを1つ決めておくと振り返りやすくなります。",
+    }
+
+
+def _build_public_narrative(summary: dict, task_names: list[str], progress: str, tomorrow: str) -> dict:
+    focus_text = "、".join(task_names[:3]) if task_names else "記録された作業項目はありません"
+    outline = f"本日は {focus_text} を中心に進めました。総作業時間は {summary['total_minutes']} 分です。"
+    support = (
+        f"成果物は {summary['artifact_count']} 件、主なリモート接続先は {', '.join(summary['remote_hosts'][:2])} です。"
+        if summary["remote_hosts"]
+        else f"成果物は {summary['artifact_count']} 件です。"
+    )
+    return {
+        "outline": outline,
+        "progress_paragraph": progress,
+        "supporting_note": support,
+        "next_action_paragraph": tomorrow,
+    }
+
+
 def build_artifact_groups(entries: list[dict]) -> list[dict]:
     grouped: dict[tuple[str, str], dict] = {}
     for entry in _manual_artifact_entries(entries):
@@ -117,8 +192,8 @@ def build_artifact_groups(entries: list[dict]) -> list[dict]:
         if key not in grouped:
             grouped[key] = {
                 "task_id": entry.get("task_id", ""),
-                "task_title": entry.get("task_title", "") or entry.get("activity_label", "Uncategorized"),
-                "task_path_text": entry.get("task_path_text", "") or entry.get("task_title", "Unassigned Task"),
+                "task_title": entry.get("task_title", "") or entry.get("activity_label", "未分類"),
+                "task_path_text": entry.get("task_path_text", "") or entry.get("task_title", "未割り当てタスク"),
                 "task_color": entry.get("task_color", ""),
                 "started_at": entry.get("task_started_at", "") or entry.get("timestamp", ""),
                 "screenshots": [],
@@ -131,7 +206,6 @@ def build_artifact_groups(entries: list[dict]) -> list[dict]:
                 "window_title": entry.get("window_title", ""),
             }
         )
-
     groups = list(grouped.values())
     for group in groups:
         group["screenshots"].sort(key=lambda item: item.get("captured_at", ""))
@@ -164,22 +238,27 @@ def build_private_summary(entries: list[dict], sessions: list[dict] | None = Non
     edit_summaries = _collect_edit_summaries(entries)
     diff_added_lines = sum((entry.get("git_diff_stats", {}) or {}).get("added_lines", 0) for entry in entries)
     diff_removed_lines = sum((entry.get("git_diff_stats", {}) or {}).get("removed_lines", 0) for entry in entries)
+    remote_session_count, remote_minutes, remote_hosts = _aggregate_remote_sessions(sessions)
+    if remote_session_count == 0:
+        remote_session_count, remote_minutes, remote_hosts = _aggregate_remote_entries(timeline)
 
     suggestions: list[str] = []
     if not sessions:
-        suggestions.append("記録を始める前にタスクを開始しておくと、あとからログを見返しやすくなります。")
+        suggestions.append("記録前にタスクを開始しておくと、あとから作業単位で見返しやすくなります。")
     if transitions >= 6:
-        suggestions.append("作業の切り替えが多めでした。似た作業をまとめると集中しやすくなるかもしれません。")
+        suggestions.append("切り替えが多めだったため、翌日は似た作業をまとめると進捗が伝わりやすくなります。")
     if manual_capture_count == 0 and sessions:
-        suggestions.append("区切りのよいタイミングで手動キャプチャを残すと、進捗を追いやすくなります。")
+        suggestions.append("節目で手動キャプチャを残しておくと、成果物の説明がしやすくなります。")
     if command_count == 0:
-        suggestions.append("コマンド記録が空なので、シェル作業が十分に反映されていない可能性があります。")
+        suggestions.append("この時間帯ではコマンド履歴が見つからず、シェル作業が少なめに見えている可能性があります。")
     if edited_file_count == 0 and entries:
-        suggestions.append("保存されたファイル変更は検出されませんでした。未保存の編集はまだ反映されません。")
+        suggestions.append("ローカル編集は検出されませんでした。レビュー中心やリモート支援中心の日なら自然な結果です。")
+    if remote_session_count and manual_capture_count == 0:
+        suggestions.append("リモート作業中は接続先メモや手動キャプチャを残すと、あとから報告しやすくなります。")
     if not suggestions:
-        suggestions.append("この日はタスク記録とアクティビティ記録が安定して取れています。")
+        suggestions.append("この日はタスク記録と作業記録が安定して取得できています。")
 
-    return {
+    summary = {
         "total_minutes": total_minutes,
         "totals": [{"activity_label": label, "minutes": round(minutes, 1)} for label, minutes in sorted(totals.items(), key=lambda pair: pair[1], reverse=True)],
         "timeline": timeline,
@@ -201,7 +280,12 @@ def build_private_summary(entries: list[dict], sessions: list[dict] | None = Non
             "added_lines": diff_added_lines,
             "removed_lines": diff_removed_lines,
         },
+        "remote_session_count": remote_session_count,
+        "remote_minutes": remote_minutes,
+        "remote_hosts": remote_hosts,
     }
+    summary["narrative"] = _build_private_narrative(summary)
+    return summary
 
 
 def build_public_report(entries: list[dict], sessions: list[dict] | None = None) -> dict:
@@ -209,71 +293,34 @@ def build_public_report(entries: list[dict], sessions: list[dict] | None = None)
     summary = build_private_summary(entries, sessions=sessions)
     task_names = [item["task_name"] for item in summary["task_totals"][:3]]
     if not task_names:
-        task_names = ["選択日の記録タスクはありません。"]
+        task_names = ["この日の作業項目はありません。"]
 
-    progress = "この日の作業内容と切り替え状況をもとに進捗をまとめました。"
+    progress = "進捗は記録されていますが、タスクの文脈が少なく詳細な説明は控えめです。"
     if summary["task_totals"]:
-        progress = f"主な作業対象は {summary['task_totals'][0]['task_name']} でした。"
+        progress = f"主な進捗は {summary['task_totals'][0]['task_name']} を中心に進みました。"
     if summary["edit_summaries"]:
-        progress = f"{progress} 直近の変更内容: {summary['edit_summaries'][0]}"
+        progress = f"{progress} 代表的な変更は「{summary['edit_summaries'][0]}」です。"
 
-    tomorrow = "優先度の高いタスクを継続し、節目で成果物を1件残してください。"
+    tomorrow = "優先度の高い作業を継続し、引き継ぎ用の成果物を1つ残してください。"
     if summary["top_files"]:
-        tomorrow = f"{summary['top_files'][0]['path']} 周辺の作業を継続し、節目で成果物を1件残してください。"
-    concerns = "記録されたアクティビティからは大きな懸念は見つかりませんでした。"
-    if summary["transition_count"] >= 6:
-        concerns = "作業の切り替えが多く、集中が分散していた可能性があります。"
-    elif summary["command_count"] == 0:
-        concerns = "コマンド履歴を確認できなかったため、シェル作業が十分に反映されていない可能性があります。"
+        tomorrow = f"{summary['top_files'][0]['path']} 周辺の作業を継続し、引き継ぎ用の成果物を1つ残してください。"
 
     artifact_paths = [entry["screenshot_path"] for entry in _manual_artifact_entries(entries)]
+    narrative = _build_public_narrative(summary, task_names, progress, tomorrow)
 
-    report_lines = ["本日の作業"]
-    for item in task_names:
-        report_lines.append(f"- {item}")
-    report_lines.extend(
-        [
-            "",
-            "進捗",
-            f"- {progress}",
-            "",
-            "次のアクション",
-            f"- {tomorrow}",
-            "",
-            "懸念点",
-            f"- {concerns}",
-            "",
-            "成果物",
-            f"- 手動キャプチャ: {summary['manual_capture_count']}",
-            f"- 成果物数: {summary['artifact_count']}",
-            "",
-            "開発シグナル",
-            f"- コマンド数: {summary['command_count']}",
-            f"- 編集ファイル数: {summary['edited_file_count']}",
-        ]
-    )
-    if summary["top_commands"]:
-        report_lines.append(f"- 最多コマンド: {summary['top_commands'][0]['command']}")
-    if summary["top_files"]:
-        report_lines.append(f"- 主なファイル: {summary['top_files'][0]['path']}")
-    if summary["edit_summaries"]:
-        report_lines.append("- 編集ハイライト:")
-        for item in summary["edit_summaries"][:3]:
-            report_lines.append(f"- {item}")
-    if summary["top_commands"]:
-        report_lines.append("- コマンド一覧:")
-        for item in summary["top_commands"][:3]:
-            report_lines.append(f"- {item['command']} x{item['count']}")
-    if summary["top_files"]:
-        report_lines.append("- ファイル一覧:")
-        for item in summary["top_files"][:3]:
-            report_lines.append(f"- {item['path']} x{item['count']}")
+    report_lines = [
+        "本日の作業報告",
+        "",
+        narrative["outline"],
+        narrative["progress_paragraph"],
+        narrative["supporting_note"],
+        f"次のアクション: {narrative['next_action_paragraph']}",
+    ]
 
     return {
         "report_items": task_names,
         "progress": progress,
         "tomorrow": tomorrow,
-        "concerns": concerns,
         "artifact_count": summary["artifact_count"],
         "manual_capture_count": summary["manual_capture_count"],
         "artifact_paths": artifact_paths,
@@ -284,5 +331,101 @@ def build_public_report(entries: list[dict], sessions: list[dict] | None = None)
         "top_directories": summary["top_directories"],
         "edit_summaries": summary["edit_summaries"],
         "diff_stats": summary["diff_stats"],
+        "remote_session_count": summary["remote_session_count"],
+        "remote_minutes": summary["remote_minutes"],
+        "remote_hosts": summary["remote_hosts"],
+        "narrative": narrative,
         "report_text": "\n".join(report_lines),
+    }
+
+
+def week_start_for(target_date: date) -> date:
+    return target_date - timedelta(days=target_date.weekday())
+
+
+def build_weekly_report(target_date: date, daily_packets: list[dict]) -> dict:
+    start_date = week_start_for(target_date)
+    end_date = start_date + timedelta(days=6)
+    total_minutes = round(sum((packet.get("private_summary", {}) or {}).get("total_minutes", 0) for packet in daily_packets), 1)
+    total_artifacts = sum((packet.get("private_summary", {}) or {}).get("artifact_count", 0) for packet in daily_packets)
+    total_commands = sum((packet.get("private_summary", {}) or {}).get("command_count", 0) for packet in daily_packets)
+    total_remote_minutes = round(sum((packet.get("private_summary", {}) or {}).get("remote_minutes", 0) for packet in daily_packets), 1)
+
+    task_counter = Counter()
+    remote_hosts = Counter()
+    edit_highlights: list[str] = []
+    seen_edits: set[str] = set()
+    days: list[dict] = []
+
+    for packet in daily_packets:
+        selected_date = packet["date"]
+        private_summary = packet["private_summary"]
+        public_report = packet["public_report"]
+        top_task = private_summary.get("task_totals", [{}])[0] if private_summary.get("task_totals") else {}
+        days.append(
+            {
+                "date_label": selected_date.strftime("%Y-%m-%d"),
+                "total_minutes": private_summary.get("total_minutes", 0),
+                "top_task_name": top_task.get("task_name", ""),
+                "top_task_minutes": top_task.get("minutes", 0),
+                "progress": public_report.get("progress", ""),
+                "artifact_count": private_summary.get("artifact_count", 0),
+                "remote_minutes": private_summary.get("remote_minutes", 0),
+                "narrative": public_report.get("narrative", {}).get("outline", ""),
+            }
+        )
+        for item in private_summary.get("task_totals", []):
+            task_counter[item.get("task_name", "")] += item.get("minutes", 0)
+        for host in private_summary.get("remote_hosts", []):
+            remote_hosts[host] += 1
+        for summary in private_summary.get("edit_summaries", []):
+            if summary and summary not in seen_edits:
+                seen_edits.add(summary)
+                edit_highlights.append(summary)
+            if len(edit_highlights) >= 5:
+                break
+
+    key_tasks = [task for task, _count in task_counter.most_common(5) if task]
+    overview = (
+        f"今週は {', '.join(key_tasks[:3])} を中心に進め、総作業時間は {total_minutes} 分でした。"
+        if key_tasks
+        else f"今週の総作業時間は {total_minutes} 分でした。"
+    )
+    remote_note = (
+        f"リモート作業は合計 {total_remote_minutes} 分で、主な接続先は {', '.join(host for host, _ in remote_hosts.most_common(3))} です。"
+        if remote_hosts
+        else "リモート作業はありませんでした。"
+    )
+    next_action = (
+        f"来週は {key_tasks[0]} を軸に、成果物と変更点を早めに揃えると報告しやすくなります。"
+        if key_tasks
+        else "来週は優先度の高い作業を明確にして、日次ごとに成果物を1つ残すと振り返りやすくなります。"
+    )
+
+    weekly_lines = [
+        f"週次報告 ({start_date.isoformat()} - {end_date.isoformat()})",
+        "",
+        overview,
+        remote_note,
+        next_action,
+    ]
+
+    return {
+        "week_label": f"{start_date.isoformat()} - {end_date.isoformat()}",
+        "week_start_iso": start_date.isoformat(),
+        "week_end_iso": end_date.isoformat(),
+        "total_minutes": total_minutes,
+        "artifact_count": total_artifacts,
+        "command_count": total_commands,
+        "remote_minutes": total_remote_minutes,
+        "key_tasks": key_tasks,
+        "remote_hosts": [host for host, _count in remote_hosts.most_common(5)],
+        "days": days,
+        "edit_highlights": edit_highlights[:5],
+        "narrative": {
+            "overview": overview,
+            "remote_note": remote_note,
+            "next_action": next_action,
+        },
+        "report_text": "\n".join(weekly_lines),
     }

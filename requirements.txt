@@ -6,3 +6,4 @@ mss==10.1.0
 Pillow==11.3.0
 python-dotenv==1.1.1
 pytesseract==0.3.13
+reportlab==4.2.2

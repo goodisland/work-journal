@@ -462,6 +462,25 @@ button,
   font-size: 1.15rem;
 }
 
+.mode-panel {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(15, 118, 110, 0.07);
+}
+
+.mode-name {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.mode-detail {
+  margin: 0;
+  font-size: 1rem;
+}
+
 .focus-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

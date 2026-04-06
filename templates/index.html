@@ -2,12 +2,12 @@
 {% block content %}
 <section class="hero-card">
   <div>
-    <p class="eyebrow">Dashboard</p>
+    <p class="eyebrow">ホーム</p>
     <h2>{{ date_browser.selected_date_label }} の作業状況</h2>
-    <p class="muted">今日のログやタスク状況を確認しながら、必要な操作にすぐ移れるダッシュボードです。</p>
+    <p class="muted">今日のログ、タスク、記録状態をまとめて確認できます。</p>
   </div>
   <div class="status-pill {{ 'running' if recording else 'stopped' }}">
-    {{ "Recording" if recording else "Stopped" }}
+    {{ "記録中" if recording else "停止中" }}
   </div>
 </section>
 
@@ -30,8 +30,74 @@
   <article class="card">
     <div class="row-between">
       <div>
+        <h3>現在のモード</h3>
+        <p class="muted">今どの形で記録しているかをここで確認できます。</p>
+      </div>
+      <span class="status-pill {{ 'running' if mode_status.key != 'idle' else 'stopped' }}">{{ mode_status.label }}</span>
+    </div>
+    <div class="mode-panel">
+      <p class="mode-name">{{ mode_status.label }}</p>
+      <p class="mode-detail">{{ mode_status.detail }}</p>
+      <p class="muted">{{ mode_status.description }}</p>
+      <button
+        type="button"
+        class="primary"
+        onclick="window.open('/mode-control', 'mode-control', 'width=520,height=700,resizable=yes,scrollbars=yes')"
+      >
+        モード選択を開く
+      </button>
+    </div>
+  </article>
+
+  <article class="card">
+    <h3>JSONL 取り込み</h3>
+    <p class="muted">別のPCで集めたログを取り込みます。重複する行は自動でスキップします。</p>
+    <form method="post" action="/imports/jsonl" enctype="multipart/form-data" class="stack-form">
+      <label>取り込み種別
+        <select name="log_kind">
+          <option value="auto">自動判定</option>
+          <option value="activity">アクティビティログ</option>
+          <option value="task_sessions">タスクセッション</option>
+        </select>
+      </label>
+      <label>JSONL ファイル
+        <input type="file" name="jsonl_file" accept=".jsonl,.txt,application/json">
+      </label>
+      <input type="hidden" name="redirect_to" value="/">
+      <button type="submit" class="primary">JSONL を取り込む</button>
+    </form>
+  </article>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <h3>週次報告</h3>
+    <p class="muted">日次サマリーと公開レポートを束ねて、週次の報告画面を別ウィンドウで表示します。</p>
+    <button
+      type="button"
+      class="primary"
+      onclick="window.open('/weekly-report?date={{ date_browser.selected_date_iso }}', 'weekly-report', 'width=1100,height=860,resizable=yes,scrollbars=yes')"
+    >
+      週次報告を開く
+    </button>
+  </article>
+
+  <article class="card">
+    <h3>日次レポート保存</h3>
+    <p class="muted">日次サマリーと公開レポートを開くと、HTML と PDF を保存します。</p>
+    <div class="button-row">
+      <a href="/private-summary?date={{ date_browser.selected_date_iso }}" class="button-link" target="_blank" rel="noopener">日次サマリーを開く</a>
+      <a href="/public-report?date={{ date_browser.selected_date_iso }}" class="button-link" target="_blank" rel="noopener">公開レポートを開く</a>
+    </div>
+  </article>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <div class="row-between">
+      <div>
         <h3>タスク開始</h3>
-        <p class="muted">登録済みタスクから選んで、そのまま記録を始められます。</p>
+        <p class="muted">開始するタスクを選ぶと、以後の記録にその文脈が付きます。</p>
       </div>
       <a href="/tasks" class="button-link">タスク管理</a>
     </div>
@@ -40,7 +106,7 @@
       <section class="group-card">
         <div class="group-header">
           <h4>{{ group.major }}</h4>
-          <span class="badge">{{ group.tasks|length }} tasks</span>
+          <span class="badge">{{ group.tasks|length }} 件</span>
         </div>
         <div class="stack-list">
           {% for task in group.tasks %}
@@ -85,21 +151,21 @@
       </label>
       <label class="checkbox-row">
         <input type="checkbox" name="use_ai" {% if settings.use_ai %}checked{% endif %}>
-        AI 判定を使う
+        AI 要約を使う
       </label>
-      <label>AI Provider
+      <label>AI プロバイダ
         <select name="ai_provider">
           {% for provider in ["mock", "openai", "mistral"] %}
           <option value="{{ provider }}" {% if provider == settings.ai_provider %}selected{% endif %}>{{ provider }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>AI 信頼度しきい値
+      <label>AI 呼び出し閾値
         <input type="number" step="0.05" min="0" max="1" name="ai_threshold" value="{{ settings.ai_threshold }}">
       </label>
       <div class="button-row">
-        <button type="submit" class="primary">記録開始</button>
-        <button type="submit" formaction="/recording/stop" class="secondary">記録停止</button>
+        <button type="submit" class="primary">記録を開始</button>
+        <button type="submit" formaction="/recording/stop" class="secondary">記録を停止</button>
         <button type="submit" formaction="/recording/capture" class="ghost">1回だけ記録</button>
       </div>
     </form>
@@ -110,8 +176,8 @@
   <article class="card calendar-card">
     <div class="row-between">
       <div>
-        <h3>月間カレンダー</h3>
-        <p class="muted">日付をクリックすると、その日の詳細を別ウィンドウで開きます。</p>
+        <h3>カレンダー</h3>
+        <p class="muted">日ごとの作業量を見ながら、気になる日の詳細を開けます。</p>
       </div>
     </div>
 
@@ -160,7 +226,7 @@
 
     <div class="calendar-footer">
       <div class="calendar-legend">
-        <p class="muted">当月合計 {{ calendar_view.month_total_minutes }} min</p>
+        <p class="muted">月合計 {{ calendar_view.month_total_minutes }} min</p>
         <div class="legend-list">
           {% for item in calendar_view.legend %}
           <div class="legend-item">
@@ -169,7 +235,7 @@
             <strong>{{ item.minutes }} min</strong>
           </div>
           {% else %}
-          <p class="muted">今月のセッションはまだありません。</p>
+          <p class="muted">この月のセッションはまだありません。</p>
           {% endfor %}
         </div>
       </div>
@@ -177,7 +243,7 @@
   </article>
 
   <article class="card">
-    <h3>{{ date_browser.selected_date_label }} のタスク集計</h3>
+    <h3>{{ date_browser.selected_date_label }} のタスク内訳</h3>
     <div class="stack-list">
       {% for item in summary.task_totals %}
       <div class="row-between task-summary-row">
@@ -188,7 +254,7 @@
         <strong>{{ item.minutes }} min</strong>
       </div>
       {% else %}
-      <p class="muted">この日のタスク実績はありません。</p>
+      <p class="muted">この日のタスク実績はまだありません。</p>
       {% endfor %}
     </div>
     <div class="note-block">
@@ -214,7 +280,7 @@
         </div>
       </div>
       {% else %}
-      <p class="muted">この日のログはありません。</p>
+      <p class="muted">この日のログはまだありません。</p>
       {% endfor %}
     </div>
   </article>

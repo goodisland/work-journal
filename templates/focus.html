@@ -3,7 +3,7 @@
 <section class="focus-shell">
   <article class="focus-panel">
     {% if active_session %}
-    <p class="eyebrow">Focus Mode</p>
+    <p class="eyebrow">集中画面</p>
     <h2>
       <span class="task-dot" style="--task-color: {{ active_session.task_color or '#0f766e' }}"></span>
       {{ active_session.task_title }}
@@ -23,6 +23,19 @@
         <strong>{{ summary.manual_capture_count }}</strong>
       </div>
     </div>
+    {% if active_remote_session %}
+    <div class="card">
+      <p class="eyebrow">リモート作業</p>
+      <p><strong>{{ active_remote_session.remote_tool }}</strong>{% if active_remote_session.remote_host %} / {{ active_remote_session.remote_host }}{% endif %}</p>
+      {% if active_remote_session.remote_note %}
+      <p class="muted">{{ active_remote_session.remote_note }}</p>
+      {% endif %}
+      <form method="post" action="/remote/stop" class="inline-form">
+        <input type="hidden" name="redirect_to" value="/focus">
+        <button type="submit" class="secondary">リモート作業を終了</button>
+      </form>
+    </div>
+    {% endif %}
     <div class="button-row">
       <form method="post" action="/tasks/capture">
         <button type="submit" class="primary">今の画面を成果物として保存</button>
@@ -34,7 +47,7 @@
     </div>
     <p class="muted">小さい操作画面を開くと、作業中でも一時停止・記録終了・成果物保存をすぐ行えます。</p>
     {% else %}
-    <p class="eyebrow">Focus Mode</p>
+    <p class="eyebrow">集中画面</p>
     <h2>進行中のタスクはありません</h2>
     <p class="muted">ダッシュボードからタスクを開始すると、ここに現在の作業が表示されます。</p>
     <a href="/" class="button-link">ダッシュボードへ戻る</a>

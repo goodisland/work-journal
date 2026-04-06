@@ -18,14 +18,14 @@
       </div>
       <div class="banner-actions">
         <span class="recording-indicator {{ 'is-running' if recording else 'is-stopped' }}">
-          {{ "画面記録中" if recording else "記録停止中" }}
+          {{ "記録中" if recording else "記録停止中" }}
         </span>
         <span>{{ active_session.started_at[11:16] }} 開始</span>
         <a href="/focus">集中画面</a>
         {% if recording %}
         <form method="post" action="/recording/stop" class="banner-form">
           <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-          <button type="submit" class="banner-button danger">記録終了</button>
+          <button type="submit" class="banner-button danger">記録を停止</button>
         </form>
         {% else %}
         <form method="post" action="/recording/start" class="banner-form">
@@ -35,7 +35,7 @@
           <input type="hidden" name="ai_provider" value="{{ recorder_settings.ai_provider }}">
           <input type="hidden" name="ai_threshold" value="{{ recorder_settings.ai_threshold }}">
           <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-          <button type="submit" class="banner-button">記録開始</button>
+          <button type="submit" class="banner-button">記録を開始</button>
         </form>
         {% endif %}
       </div>
@@ -45,36 +45,43 @@
     <div class="page-shell">
       <aside class="sidebar">
         <div>
-          <p class="eyebrow">Task Tracking</p>
+          <p class="eyebrow">タスク記録</p>
           <h1>Work Journal</h1>
-          <p class="muted">今日の記録を見ながら、過去日もさかのぼれる作業ジャーナルです。</p>
+          <p class="muted">日々の作業を記録し、日次と週次で振り返るためのワークジャーナルです。</p>
         </div>
         <nav class="nav">
-          <a href="/">ダッシュボード</a>
+          <a href="/">ホーム</a>
           <a href="/tasks">タスク管理</a>
           <a href="/focus">集中画面</a>
           <a href="/artifacts?date={{ date_browser.selected_date_iso if date_browser else '' }}">成果物</a>
-          <a href="/timeline?date={{ date_browser.selected_date_iso if date_browser else '' }}">ログ一覧</a>
+          <a href="/timeline?date={{ date_browser.selected_date_iso if date_browser else '' }}">タイムライン</a>
           <a href="/private-summary?date={{ date_browser.selected_date_iso if date_browser else '' }}">日次サマリー</a>
-          <a href="/public-report?date={{ date_browser.selected_date_iso if date_browser else '' }}">共有レポート</a>
+          <a href="/public-report?date={{ date_browser.selected_date_iso if date_browser else '' }}">公開レポート</a>
+          <a href="/weekly-report?date={{ date_browser.selected_date_iso if date_browser else '' }}">週次報告</a>
         </nav>
       </aside>
 
       <main class="content">
+        {% if import_message %}
+        <section class="card">
+          <p class="eyebrow">取り込み結果</p>
+          <p class="muted">{{ import_message }}</p>
+        </section>
+        {% endif %}
         {% if show_log_filters %}
         <section class="card filter-card">
           <div class="row-between filter-header">
             <div>
-              <p class="eyebrow">Log Filter</p>
+              <p class="eyebrow">日付フィルター</p>
               <h3>{{ date_browser.selected_date_label }} の記録</h3>
             </div>
             <div class="button-row">
               {% if date_browser.previous_date_iso %}
-              <a class="button-link" href="{{ current_path }}?date={{ date_browser.previous_date_iso }}">前の日</a>
+              <a class="button-link" href="{{ current_path }}?date={{ date_browser.previous_date_iso }}">前日</a>
               {% endif %}
               <a class="button-link" href="{{ current_path }}?date={{ today_iso }}">今日</a>
               {% if date_browser.next_date_iso %}
-              <a class="button-link" href="{{ current_path }}?date={{ date_browser.next_date_iso }}">次の日</a>
+              <a class="button-link" href="{{ current_path }}?date={{ date_browser.next_date_iso }}">翌日</a>
               {% endif %}
             </div>
           </div>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/report.css">
+  </head>
+  <body class="report-page">
+    <main class="report-shell">
+      <article class="report-paper">
+        <header class="report-header">
+          <p class="report-label">WEEKLY REPORT</p>
+          <h1 class="report-title">{{ weekly.week_label }} 週次報告</h1>
+          <p class="report-subtitle">日次の内容を束ね、週の進捗を報告書として読みやすく整理したレポートです。</p>
+        </header>
+
+        <section class="report-meta">
+          <div class="report-meta-card">
+            <p class="report-meta-label">総作業時間</p>
+            <p class="report-meta-value">{{ weekly.total_minutes }} min</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">成果物数</p>
+            <p class="report-meta-value">{{ weekly.artifact_count }}</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">コマンド数</p>
+            <p class="report-meta-value">{{ weekly.command_count }}</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">リモート時間</p>
+            <p class="report-meta-value">{{ weekly.remote_minutes }} min</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">1. 週次総括</h2>
+          <div class="report-summary-box">
+            <p>{{ weekly.narrative.overview }}</p>
+            <p>{{ weekly.narrative.remote_note }}</p>
+            <p><strong>来週の進め方:</strong> {{ weekly.narrative.next_action }}</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">2. 日別の進捗</h2>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>日付</th>
+                <th>内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for day in weekly.days %}
+              <tr>
+                <td>{{ day.date_label }}</td>
+                <td>
+                  {{ day.narrative or day.progress }}
+                  {% if day.top_task_name %}<br>主タスク: {{ day.top_task_name }}{% endif %}
+                  <br>作業時間: {{ day.total_minutes }} min
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="2">この週の記録はありません。</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">3. 編集ハイライト</h2>
+          <ul class="report-list">
+            {% for item in weekly.edit_highlights %}
+            <li>{{ item }}</li>
+            {% else %}
+            <li>編集ハイライトはありません。</li>
+            {% endfor %}
+          </ul>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>

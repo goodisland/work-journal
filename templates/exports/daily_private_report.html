@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/report.css">
+  </head>
+  <body class="report-page">
+    <main class="report-shell">
+      <article class="report-paper">
+        <header class="report-header">
+          <p class="report-label">DAILY INTERNAL REPORT</p>
+          <h1 class="report-title">{{ report_date }} 日次サマリー</h1>
+          <p class="report-subtitle">その日の作業実績、記録シグナル、成果物を社内向けに整理したレポートです。</p>
+        </header>
+
+        <section class="report-meta">
+          <div class="report-meta-card">
+            <p class="report-meta-label">総作業時間</p>
+            <p class="report-meta-value">{{ summary.total_minutes }} min</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">成果物数</p>
+            <p class="report-meta-value">{{ summary.artifact_count }}</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">コマンド数</p>
+            <p class="report-meta-value">{{ summary.command_count }}</p>
+          </div>
+          <div class="report-meta-card">
+            <p class="report-meta-label">リモート時間</p>
+            <p class="report-meta-value">{{ summary.remote_minutes }} min</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">1. 本日の要約</h2>
+          <div class="report-summary-box">
+            <p>主なタスクは {% if summary.task_totals %}<strong>{{ summary.task_totals[0].task_name }}</strong>{% else %}<strong>記録なし</strong>{% endif %} でした。</p>
+            <p>アクティビティ上位は {% if summary.top_labels %}{{ summary.top_labels | map(attribute='activity_label') | join(' / ') }}{% else %}なし{% endif %} です。</p>
+            <p>補足: {% if summary.suggestions %}{{ summary.suggestions[0] }}{% else %}特記事項はありません。{% endif %}</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">2. タスク別実績</h2>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>タスク</th>
+                <th>時間</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in summary.task_totals %}
+              <tr>
+                <td>{{ item.task_name }}</td>
+                <td>{{ item.minutes }} min</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="2">タスク実績はありません。</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">3. 記録シグナル</h2>
+          <div class="report-grid">
+            <div class="report-kpi">
+              切り替え回数
+              <strong>{{ summary.transition_count }}</strong>
+            </div>
+            <div class="report-kpi">
+              編集ファイル数
+              <strong>{{ summary.edited_file_count }}</strong>
+            </div>
+            <div class="report-kpi">
+              手動キャプチャ
+              <strong>{{ summary.manual_capture_count }}</strong>
+            </div>
+            <div class="report-kpi">
+              リモート回数
+              <strong>{{ summary.remote_session_count }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">4. 編集・コマンドのハイライト</h2>
+          <div class="report-grid">
+            <div>
+              <p class="report-note">編集ハイライト</p>
+              <ul class="report-list">
+                {% for item in summary.edit_summaries %}
+                <li>{{ item }}</li>
+                {% else %}
+                <li>編集ハイライトはありません。</li>
+                {% endfor %}
+              </ul>
+            </div>
+            <div>
+              <p class="report-note">上位コマンド</p>
+              <ul class="report-list">
+                {% for item in summary.top_commands %}
+                <li>{{ item.command }} ({{ item.count }}回)</li>
+                {% else %}
+                <li>コマンド記録はありません。</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <h2 class="report-section-title">5. セッション一覧</h2>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>時間帯</th>
+                <th>内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for session in sessions %}
+              <tr>
+                <td>{{ session.started_at[11:16] }} - {{ session.ended_at[11:16] if session.ended_at else "進行中" }}</td>
+                <td>
+                  {{ session.task_path_text }}
+                  {% if session.work_mode == "remote" %}
+                  <br>リモート: {{ session.remote_tool or "リモート接続" }}{% if session.remote_host %} / {{ session.remote_host }}{% endif %}
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="2">セッション記録はありません。</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>

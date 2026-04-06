@@ -9,10 +9,11 @@ from pathlib import Path
 from storage import (
     ACTIVE_TASK_SESSION_PATH,
     TASK_SESSION_LOG_PATH,
-    TASKS_PATH,
     append_jsonl,
     read_json,
+    read_jsonl,
     write_json,
+    TASKS_PATH,
 )
 
 
@@ -158,6 +159,11 @@ class TaskService:
             "ended_at": "",
             "screenshots": [],
             "note": task.get("note", ""),
+            "work_mode": "local",
+            "remote_tool": "",
+            "remote_host": "",
+            "remote_note": "",
+            "remote_started_at": "",
         }
         write_json(ACTIVE_TASK_SESSION_PATH, session)
         return session
@@ -207,6 +213,11 @@ class TaskService:
             "task_path_text": active.get("task_path_text", ""),
             "task_started_at": active.get("started_at", ""),
             "task_color": active.get("task_color", ""),
+            "work_mode": active.get("work_mode", "local"),
+            "remote_tool": active.get("remote_tool", ""),
+            "remote_host": active.get("remote_host", ""),
+            "remote_note": active.get("remote_note", ""),
+            "remote_started_at": active.get("remote_started_at", ""),
         }
 
     def list_sessions_for_date(self, target_date: date | None = None) -> list[dict]:
@@ -263,21 +274,3 @@ class TaskService:
 
 def read_logs_from_jsonl() -> list[dict]:
     return read_jsonl(TASK_SESSION_LOG_PATH)
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    items: list[dict] = []
-    with path.open("r", encoding="utf-8") as fh:
-        for raw_line in fh:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                payload = json.loads(line)
-            except Exception:
-                continue
-            if isinstance(payload, dict):
-                items.append(payload)
-    return items
